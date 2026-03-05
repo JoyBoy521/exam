@@ -27,3 +27,6 @@ exam-ui/.vite/
 # Temp
 *.tmp
 *.swp
+
+# Windows ADS sidecar
+*:Zone.Identifier
