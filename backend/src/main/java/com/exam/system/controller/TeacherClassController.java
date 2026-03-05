@@ -6,9 +6,14 @@ import com.exam.system.entity.Student;
 import com.exam.system.mapper.ClassInfoMapper;
 import com.exam.system.mapper.StudentMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +90,32 @@ public class TeacherClassController {
         return studentMapper.selectList(wrapper);
     }
 
+    @GetMapping("/classes/{classId}/students/export")
+    public ResponseEntity<byte[]> exportStudentsCsv(@PathVariable Long classId) {
+        ClassInfo classInfo = classInfoMapper.selectById(classId);
+        if (classInfo == null) {
+            throw new IllegalArgumentException("班级不存在");
+        }
+        List<Student> students = getStudentsByClass(classId);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("学号,姓名,联系电话,加入时间\n");
+        for (Student s : students) {
+            sb.append(csvSafe(s.getStudentNo())).append(",")
+                    .append(csvSafe(s.getName())).append(",")
+                    .append(csvSafe(s.getPhone())).append(",")
+                    .append(csvSafe(s.getCreateTime() == null ? "" : s.getCreateTime().toString()))
+                    .append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        String fileName = classInfo.getName().replaceAll("\\s+", "_") + "_students.csv";
+
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + fileName)
+                .body(content);
+    }
+
     @PostMapping("/students")
     public void addStudent(@RequestBody Student student) {
         if (student.getClassId() == null) {
@@ -130,9 +161,12 @@ public class TeacherClassController {
 
         int success = 0;
         int skipped = 0;
-        for (Object item : students) {
+        List<Map<String, Object>> errors = new ArrayList<>();
+        for (int i = 0; i < students.size(); i++) {
+            Object item = students.get(i);
             if (!(item instanceof Map<?, ?> rawRow)) {
                 skipped++;
+                errors.add(buildBatchError(i + 1, "", "", "行数据格式错误"));
                 continue;
             }
             @SuppressWarnings("unchecked")
@@ -142,12 +176,14 @@ public class TeacherClassController {
             String phone = String.valueOf(row.getOrDefault("phone", "")).trim();
             if (studentNo.isBlank() || name.isBlank()) {
                 skipped++;
+                errors.add(buildBatchError(i + 1, studentNo, name, "学号或姓名为空"));
                 continue;
             }
 
             long exists = studentMapper.selectCount(new LambdaQueryWrapper<Student>().eq(Student::getStudentNo, studentNo));
             if (exists > 0) {
                 skipped++;
+                errors.add(buildBatchError(i + 1, studentNo, name, "学号已存在"));
                 continue;
             }
 
@@ -170,6 +206,7 @@ public class TeacherClassController {
         Map<String, Object> result = new HashMap<>();
         result.put("success", success);
         result.put("skipped", skipped);
+        result.put("errors", errors);
         return result;
     }
 
@@ -184,5 +221,49 @@ public class TeacherClassController {
                 classInfoMapper.updateById(classInfo);
             }
         }
+    }
+
+    @PutMapping("/students/{id}")
+    public void updateStudent(@PathVariable Long id, @RequestBody Student payload) {
+        Student student = studentMapper.selectById(id);
+        if (student == null) {
+            throw new IllegalArgumentException("学生不存在");
+        }
+        String name = payload.getName() == null ? "" : payload.getName().trim();
+        String phone = payload.getPhone() == null ? "" : payload.getPhone().trim();
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("学生姓名不能为空");
+        }
+        student.setName(name);
+        student.setPhone(phone.isBlank() ? null : phone);
+        studentMapper.updateById(student);
+    }
+
+    @PostMapping("/students/{id}/reset-password")
+    public String resetStudentPassword(@PathVariable Long id) {
+        Student student = studentMapper.selectById(id);
+        if (student == null) {
+            throw new IllegalArgumentException("学生不存在");
+        }
+        student.setPassword(passwordEncoder.encode("123456"));
+        studentMapper.updateById(student);
+        return "已重置为初始密码 123456";
+    }
+
+    private String csvSafe(String value) {
+        String text = value == null ? "" : value;
+        if (text.contains(",") || text.contains("\"") || text.contains("\n")) {
+            return "\"" + text.replace("\"", "\"\"") + "\"";
+        }
+        return text;
+    }
+
+    private Map<String, Object> buildBatchError(int lineNo, String studentNo, String name, String reason) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("lineNo", lineNo);
+        row.put("studentNo", studentNo == null ? "" : studentNo);
+        row.put("name", name == null ? "" : name);
+        row.put("reason", reason);
+        return row;
     }
 }

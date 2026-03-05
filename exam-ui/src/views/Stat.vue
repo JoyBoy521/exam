@@ -40,6 +40,55 @@
     </el-row>
 
     <el-row :gutter="16" style="margin-top:16px;">
+      <el-col :span="8">
+        <el-card shadow="never">
+          <template #header><span>近7天交卷趋势</span></template>
+          <el-table :data="trendRows" size="small" height="240">
+            <el-table-column prop="dateLabel" label="日期" width="120" />
+            <el-table-column prop="count" label="交卷数" width="90" />
+            <el-table-column label="趋势">
+              <template #default="scope">
+                <el-progress :percentage="scope.row.percent" :stroke-width="10" />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+
+      <el-col :span="8">
+        <el-card shadow="never">
+          <template #header><span>异常班级排行 Top10</span></template>
+          <el-table :data="abnormalClassRows" size="small" height="240">
+            <el-table-column label="#" width="60">
+              <template #default="scope">{{ scope.$index + 1 }}</template>
+            </el-table-column>
+            <el-table-column prop="className" label="班级" />
+            <el-table-column prop="riskScore" label="风险分" width="90" />
+            <el-table-column prop="riskStudentCount" label="异常人数" width="90" />
+          </el-table>
+        </el-card>
+      </el-col>
+
+      <el-col :span="8">
+        <el-card shadow="never">
+          <template #header><span>通过率分层</span></template>
+          <div class="pass-overview">
+            <div>已出分：<b>{{ advanced.gradedCount || 0 }}</b></div>
+            <div>待批阅：<b>{{ advanced.pendingCount || 0 }}</b></div>
+            <div>总体通过率：<b>{{ advanced.overallPassRate || 0 }}%</b></div>
+          </div>
+          <el-table :data="passLayerRows" size="small" height="188">
+            <el-table-column prop="label" label="分层" />
+            <el-table-column prop="count" label="人数" width="90" />
+            <el-table-column prop="rate" label="占比" width="90">
+              <template #default="scope">{{ scope.row.rate }}%</template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" style="margin-top:16px;">
       <el-col :span="12">
         <el-card shadow="never">
           <template #header><span>知识点覆盖 Top10</span></template>
@@ -102,6 +151,14 @@ const exams = ref([])
 const examId = ref(null)
 const riskList = ref([])
 const loadingRisk = ref(false)
+const advanced = ref({
+  submissionTrend: [],
+  abnormalClassRanking: [],
+  passRateLayers: [],
+  overallPassRate: 0,
+  gradedCount: 0,
+  pendingCount: 0
+})
 
 const typeNameMap = {
   SINGLE_CHOICE: '单选题',
@@ -135,13 +192,29 @@ const paperDistributionRows = computed(() => {
   }).sort((a, b) => b.count - a.count)
 })
 
+const trendRows = computed(() => {
+  const src = advanced.value.submissionTrend || []
+  const maxCount = src.reduce((m, item) => Math.max(m, Number(item.count || 0)), 0)
+  return src.map(item => ({
+    ...item,
+    dateLabel: (item.date || '').slice(5),
+    count: Number(item.count || 0),
+    percent: maxCount > 0 ? Math.round(Number(item.count || 0) * 100 / maxCount) : 0
+  }))
+})
+
+const abnormalClassRows = computed(() => advanced.value.abnormalClassRanking || [])
+const passLayerRows = computed(() => advanced.value.passRateLayers || [])
+
 const fetchOverview = async () => {
-  const [s, t] = await Promise.all([
+  const [s, t, a] = await Promise.all([
     request.get('/teacher/statistics'),
-    request.get('/teacher/todo')
+    request.get('/teacher/todo'),
+    request.get('/teacher/statistics/advanced')
   ])
   stat.value = s
   todo.value = t
+  advanced.value = a || {}
 }
 
 const fetchExams = async () => {
@@ -182,6 +255,16 @@ onMounted(() => {
   display: block;
   margin-top: 6px;
   font-size: 22px;
+  color: #303133;
+}
+.pass-overview {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #606266;
+  font-size: 13px;
+}
+.pass-overview b {
   color: #303133;
 }
 </style>
