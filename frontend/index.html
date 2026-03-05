@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>考试系统 · 教师高级工作台</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="login-overlay" id="loginBox">
+    <div class="login-card">
+      <h2>教师端登录</h2>
+      <input id="username" placeholder="账号：teacher / admin" value="teacher" />
+      <input id="password" type="password" placeholder="密码：123456" value="123456" />
+      <button id="loginBtn">登录</button>
+      <p id="loginMsg"></p>
+    </div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <h1>ExamOS</h1>
+      <a class="active" href="#" data-tab="overview">总览</a>
+      <a href="#" data-tab="question">题库</a>
+      <a href="#" data-tab="exam">考试管理</a>
+      <a href="#" data-tab="stats">统计分析</a>
+    </aside>
+    <main class="main">
+      <header>
+        <h2>教师高级工作台</h2>
+        <span id="status">API: 未连接</span>
+        <a href="student.html" style="color:#8fb7ff">打开学生作答端</a>
+      </header>
+
+      <section id="overview" class="panel active">
+        <div class="cards" id="kpis"></div>
+        <div class="card">
+          <h3>教师待办提醒</h3>
+          <div class="cards" id="todoKpis"></div>
+        </div>
+      </section>
+
+      <section id="question" class="panel">
+        <div class="card">
+          <h3>添加题目</h3>
+          <div class="grid">
+            <select id="qType"><option>SINGLE_CHOICE</option><option>TRUE_FALSE</option><option>SHORT_ANSWER</option></select>
+            <input id="qStem" placeholder="题干" />
+            <input id="qAnswer" placeholder="答案" />
+            <input id="qKnowledge" placeholder="知识点，逗号分隔" />
+            <textarea id="qOptions" placeholder="选择题选项，换行分隔"></textarea>
+          </div>
+          <button id="addQuestion">保存题目</button>
+        </div>
+        <div class="card">
+          <h3>题库列表</h3>
+          <div class="grid cols3">
+            <select id="filterType"><option value="">全部题型</option><option>SINGLE_CHOICE</option><option>TRUE_FALSE</option><option>SHORT_ANSWER</option></select>
+            <input id="filterKeyword" placeholder="按题干关键词筛选" />
+            <button id="loadQuestions">查询</button>
+          </div>
+          <table class="table" id="questionTable"><thead><tr><th>ID</th><th>题型</th><th>题干</th><th>知识点</th><th>操作</th></tr></thead><tbody></tbody></table>
+        </div>
+      </section>
+
+      <section id="exam" class="panel">
+        <div class="card">
+          <h3>手动创建试卷</h3>
+          <input id="manualTitle" placeholder="试卷标题" />
+          <input id="manualIds" placeholder="题目ID，逗号分隔，如 1,2" />
+          <button id="createManual">创建</button>
+        </div>
+        <div class="card">
+          <h3>随机组卷</h3>
+          <input id="randomTitle" placeholder="随机卷标题" />
+          <div class="grid cols3">
+            <input id="rc1" type="number" value="1" min="0" placeholder="选择题" />
+            <input id="rc2" type="number" value="0" min="0" placeholder="判断题" />
+            <input id="rc3" type="number" value="0" min="0" placeholder="简答题" />
+          </div>
+          <button id="createRandom">生成随机卷</button>
+        </div>
+        <div class="card">
+          <h3>平行试卷发放</h3>
+          <input id="groupName" placeholder="平行组名称" />
+          <input id="groupPaperIds" placeholder="试卷ID，逗号分隔（至少2个）" />
+          <button id="createGroup">创建平行组</button>
+          <div class="grid cols2" style="margin-top:10px;">
+            <input id="assignGroupId" placeholder="平行组ID" />
+            <input id="assignStudents" placeholder="学生名单，逗号分隔，如 张三,李四" />
+          </div>
+          <button id="assignGroup">随机发放试卷</button>
+        </div>
+        <div class="card">
+          <h3>发布考试</h3>
+          <input id="examPaperId" placeholder="试卷ID" />
+          <input id="examTitle" placeholder="考试标题" />
+          <div class="grid cols2">
+            <input id="examStart" placeholder="开始时间: 2026-03-03T20:00:00" />
+            <input id="examEnd" placeholder="结束时间: 2026-03-03T22:00:00" />
+          </div>
+          <button id="createExam">发布考试</button>
+        </div>
+        <div class="card">
+          <h3>考试列表（可查看提交）</h3>
+          <button id="loadExams">刷新考试</button>
+          <table class="table" id="examTable"><thead><tr><th>ID</th><th>标题</th><th>状态</th><th>试卷ID</th><th>操作</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="card">
+          <h3>考试提交记录（含人工阅卷）</h3>
+          <table class="table" id="submissionTable"><thead><tr><th>学生</th><th>客观题</th><th>主观题</th><th>总分</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead><tbody></tbody></table>
+          <div id="submissionDetail" style="margin-top:12px;color:#9fb0d2;">点击“查看详情”可查看逐题作答详情。</div>
+        </div>
+      </section>
+
+      <section id="stats" class="panel">
+        <div class="cards" id="statKpis"></div>
+        <div class="card">
+          <h3>P1 成绩分析（已并入统计）</h3>
+          <div class="grid cols2">
+            <div>
+              <h4>题型分布</h4>
+              <div id="typeBars"></div>
+            </div>
+            <div>
+              <h4>知识点覆盖 Top5</h4>
+              <table class="table" id="knowledgeTable"><thead><tr><th>知识点</th><th>题量</th></tr></thead><tbody></tbody></table>
+            </div>
+          </div>
+          <h4 style="margin-top:14px;">试卷发放分布</h4>
+          <div id="paperBars"></div>
+        </div>
+        <div class="card">
+          <h3>调试原始统计 JSON</h3>
+          <pre id="statsJson"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

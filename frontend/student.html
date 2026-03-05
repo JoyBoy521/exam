@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>考试系统 · 学生作答端</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <h1>Student</h1>
+      <a class="active" href="#" data-tab="exam-list">可参加考试</a>
+      <a href="#" data-tab="take-exam">开始作答</a>
+    </aside>
+    <main class="main">
+      <header>
+        <h2>学生作答工作台</h2>
+        <span id="studentStatus">未加载</span>
+      </header>
+
+      <section id="exam-list" class="panel active">
+        <div class="card">
+          <h3>拉取考试列表</h3>
+          <div class="grid cols2">
+            <input id="studentName" placeholder="学生姓名，如 张三" value="张三" />
+            <button id="loadExamList">加载</button>
+          </div>
+          <table class="table" id="studentExamTable">
+            <thead><tr><th>考试ID</th><th>标题</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="take-exam" class="panel">
+        <div class="card">
+          <h3>考试详情与作答</h3>
+          <div class="grid cols2">
+            <input id="takeExamId" placeholder="考试ID" />
+            <button id="loadExamDetail">加载考试题目</button>
+          </div>
+          <div id="questionContainer"></div>
+          <button id="submitExam">提交答卷</button>
+          <pre id="submitResult"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="student.js"></script>
+</body>
+</html>

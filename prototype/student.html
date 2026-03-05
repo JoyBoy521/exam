@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学生端 - 考试系统</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">学生工作台</div>
+      <nav class="nav">
+        <a class="active" href="#">首页</a>
+        <a href="#">我的考试</a>
+        <a href="#">成绩查询</a>
+        <a href="#">错题本</a>
+        <a href="#">个人中心</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <h2>欢迎回来，张同学</h2>
+        <span class="badge">本周学习目标完成 72%</span>
+      </div>
+
+      <section class="grid grid-4">
+        <div class="card metric"><h2>3</h2><p>待参加考试</p></div>
+        <div class="card metric"><h2>12</h2><p>已完成考试</p></div>
+        <div class="card metric"><h2>86</h2><p>平均成绩</p></div>
+        <div class="card metric"><h2>24</h2><p>错题待复习</p></div>
+      </section>
+
+      <section class="grid grid-2" style="margin-top: 16px;">
+        <div class="card">
+          <h3>最近考试任务</h3>
+          <table class="table">
+            <thead><tr><th>考试名称</th><th>时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>高等数学单元测验</td><td>2026-03-12 09:00</td><td><span class="badge">未开始</span></td><td><button class="btn">进入</button></td></tr>
+              <tr><td>数据结构期中考试</td><td>2026-03-15 14:30</td><td><span class="badge">可作答</span></td><td><button class="btn">开始答题</button></td></tr>
+              <tr><td>英语听力测试</td><td>2026-03-20 10:00</td><td><span class="badge">已结束</span></td><td><button class="btn secondary">查看结果</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>学习进度与提醒</h3>
+          <p>错题复习进度</p>
+          <div class="progress"><span style="width:65%"></span></div>
+          <p style="margin-top: 16px;">本周刷题进度</p>
+          <div class="progress"><span style="width:78%"></span></div>
+          <ul>
+            <li>距离《数据结构期中考试》开始还有 1 天 6 小时。</li>
+            <li>建议优先复习：链表、树、图最短路径。</li>
+            <li>系统已为你生成 20 道个性化练习题。</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

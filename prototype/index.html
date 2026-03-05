@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>考试系统 - 登录</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="hero">
+    <div class="card">
+      <h1>智能在线考试系统</h1>
+      <p style="color:#64748b;">支持教师与管理员一体化管理：组卷发布、阅卷分析、班级用户管理、系统配置；学生端支持在线考试、错题复盘与成长追踪。</p>
+      <div class="grid grid-3" style="margin-top:14px;">
+        <div class="card"><h3>教师/管理员端</h3><p>题库管理、组卷发布、阅卷统计、用户与班级管理</p></div>
+        <div class="card"><h3>学生端</h3><p>考试任务、倒计时答题、成绩报告</p></div>
+        <div class="card"><h3>系统能力</h3><p>角色权限、考试过程控制、结果分析看板</p></div>
+      </div>
+    </div>
+
+    <div class="card login-box">
+      <h2>账号登录</h2>
+      <label>账号</label>
+      <input class="input" placeholder="请输入学号/工号" />
+      <label>密码</label>
+      <input class="input" type="password" placeholder="请输入密码" />
+      <label>角色</label>
+      <select class="input">
+        <option>学生</option>
+        <option>教师/管理员</option>
+      </select>
+      <div class="row" style="justify-content: space-between; margin: 10px 0 16px; color:#64748b; font-size:14px;">
+        <span><input type="checkbox" /> 记住我</span>
+        <a href="#" style="color:#2563eb; text-decoration:none;">忘记密码</a>
+      </div>
+      <div class="row">
+        <button class="btn" style="flex:1;">登录</button>
+        <button class="btn secondary" style="flex:1;" onclick="location.href='student.html'">预览学生端</button>
+      </div>
+      <button class="btn" style="margin-top:10px; width:100%; background:#0f172a;" onclick="location.href='teacher.html'">预览教师/管理员端</button>
+    </div>
+  </div>
+</body>
+</html>
