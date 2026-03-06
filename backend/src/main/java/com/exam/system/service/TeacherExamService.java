@@ -25,6 +25,8 @@ public class TeacherExamService {
     private final StudentMapper studentMapper;
     private final ParallelGroupMapper parallelGroupMapper;
     private final ParallelAssignmentMapper parallelAssignmentMapper;
+    private final StudentWrongBookMapper studentWrongBookMapper;
+    private final ExamAnswerDraftMapper examAnswerDraftMapper;
 
     public TeacherExamService(QuestionMapper questionMapper,
                               PaperMapper paperMapper,
@@ -34,7 +36,9 @@ public class TeacherExamService {
                               ExamRecordAnswerMapper examRecordAnswerMapper,
                               StudentMapper studentMapper,
                               ParallelGroupMapper parallelGroupMapper,
-                              ParallelAssignmentMapper parallelAssignmentMapper) {
+                              ParallelAssignmentMapper parallelAssignmentMapper,
+                              StudentWrongBookMapper studentWrongBookMapper,
+                              ExamAnswerDraftMapper examAnswerDraftMapper) {
         this.questionMapper = questionMapper;
         this.paperMapper = paperMapper;
         this.paperQuestionMapper = paperQuestionMapper;
@@ -44,6 +48,8 @@ public class TeacherExamService {
         this.studentMapper = studentMapper;
         this.parallelGroupMapper = parallelGroupMapper;
         this.parallelAssignmentMapper = parallelAssignmentMapper;
+        this.studentWrongBookMapper = studentWrongBookMapper;
+        this.examAnswerDraftMapper = examAnswerDraftMapper;
     }
 
     public Exam createExam(Map<String, Object> payload) {
@@ -151,6 +157,16 @@ public class TeacherExamService {
         if (exam == null) {
             throw new NoSuchElementException("考试不存在");
         }
+        Student student = studentMapper.selectById(studentId);
+        if (student == null) {
+            throw new IllegalArgumentException("学生不存在");
+        }
+        if (exam.getClassId() != null && student.getClassId() != null && !Objects.equals(exam.getClassId(), student.getClassId())) {
+            throw new IllegalArgumentException("无权限提交该考试");
+        }
+        if (exam.getEndTime() != null && LocalDateTime.now().isAfter(exam.getEndTime())) {
+            throw new IllegalArgumentException("考试已结束，禁止交卷");
+        }
         syncExamStatusIfNeeded(exam);
 
         if ("NOT_STARTED".equals(exam.getStatus())) {
@@ -196,7 +212,7 @@ public class TeacherExamService {
                 continue;
             }
 
-            String userAnswer = Optional.ofNullable(answers.get(qid)).orElse("").trim();
+            String userAnswer = normalizeAnswerByType(q.getType(), Optional.ofNullable(answers.get(qid)).orElse(""));
             ExamRecordAnswer answer = new ExamRecordAnswer();
             answer.setRecordId(record.getId());
             answer.setQuestionId(qid);
@@ -207,7 +223,7 @@ public class TeacherExamService {
                 answer.setIsCorrect(null);
                 answer.setScore(0.0);
             } else {
-                boolean isCorrect = q.getAnswer() != null && q.getAnswer().trim().equalsIgnoreCase(userAnswer);
+                boolean isCorrect = isObjectiveCorrect(q.getType(), q.getAnswer(), userAnswer);
                 BigDecimal score = isCorrect ? Optional.ofNullable(scoreMap.get(qid)).map(PaperQuestion::getScore).orElse(BigDecimal.ZERO) : BigDecimal.ZERO;
                 answer.setIsCorrect(isCorrect ? 1 : 0);
                 answer.setScore(score.doubleValue());
@@ -227,7 +243,45 @@ public class TeacherExamService {
             record.setStatus("GRADED");
         }
         examRecordMapper.updateById(record);
+        examAnswerDraftMapper.delete(new LambdaQueryWrapper<ExamAnswerDraft>()
+                .eq(ExamAnswerDraft::getExamId, examId)
+                .eq(ExamAnswerDraft::getStudentId, studentId));
+        if (!hasSubjective) {
+            syncWrongBookForRecord(record.getId(), studentId);
+        }
         return record;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void syncWrongBookForRecord(Long recordId, Long studentId) {
+        List<ExamRecordAnswer> wrongAnswers = examRecordAnswerMapper.selectList(
+                new LambdaQueryWrapper<ExamRecordAnswer>()
+                        .eq(ExamRecordAnswer::getRecordId, recordId)
+                        .eq(ExamRecordAnswer::getIsCorrect, 0)
+        );
+        if (wrongAnswers.isEmpty()) {
+            return;
+        }
+
+        for (ExamRecordAnswer wrongAnswer : wrongAnswers) {
+            Long questionId = wrongAnswer.getQuestionId();
+            StudentWrongBook existed = studentWrongBookMapper.selectOne(
+                    new LambdaQueryWrapper<StudentWrongBook>()
+                            .eq(StudentWrongBook::getStudentId, studentId)
+                            .eq(StudentWrongBook::getQuestionId, questionId)
+                            .last("limit 1")
+            );
+            if (existed != null) {
+                continue;
+            }
+            StudentWrongBook wb = new StudentWrongBook();
+            wb.setStudentId(studentId);
+            wb.setQuestionId(questionId);
+            wb.setErrorType("系统自动归档");
+            wb.setNotes("考试错题自动加入");
+            wb.setCreateTime(LocalDateTime.now());
+            studentWrongBookMapper.insert(wb);
+        }
     }
 
     public List<TeacherSubmissionViewResponse> listExamSubmissions(Long examId) {
@@ -418,5 +472,34 @@ public class TeacherExamService {
         String[] pIds = paperIdsStr.split(",");
         int idx = Math.floorMod(studentId.intValue(), pIds.length);
         return Long.valueOf(pIds[idx]);
+    }
+
+    private boolean isObjectiveCorrect(String type, String standardAnswer, String userAnswer) {
+        if (standardAnswer == null) {
+            return false;
+        }
+        if ("MULTIPLE_CHOICE".equals(type)) {
+            return normalizeMultipleAnswer(standardAnswer).equals(normalizeMultipleAnswer(userAnswer));
+        }
+        return standardAnswer.trim().equalsIgnoreCase(userAnswer == null ? "" : userAnswer.trim());
+    }
+
+    private String normalizeAnswerByType(String type, String rawAnswer) {
+        if ("MULTIPLE_CHOICE".equals(type)) {
+            return normalizeMultipleAnswer(rawAnswer);
+        }
+        return rawAnswer == null ? "" : rawAnswer.trim();
+    }
+
+    private String normalizeMultipleAnswer(String answer) {
+        if (answer == null || answer.isBlank()) {
+            return "";
+        }
+        return Arrays.stream(answer.toUpperCase().replaceAll("\\s+", "").split(","))
+                .filter(x -> !x.isBlank())
+                .map(x -> x.substring(0, 1))
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(","));
     }
 }

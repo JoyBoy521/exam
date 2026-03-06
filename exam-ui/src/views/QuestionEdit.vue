@@ -20,6 +20,7 @@
           <span class="label">题型</span>
           <el-radio-group v-model="form.type" size="large" @change="handleTypeChange">
             <el-radio-button label="SINGLE_CHOICE">单选题</el-radio-button>
+            <el-radio-button label="MULTIPLE_CHOICE">多选题</el-radio-button>
             <el-radio-button label="TRUE_FALSE">判断题</el-radio-button>
             <el-radio-button label="SHORT_ANSWER">简答题</el-radio-button>
           </el-radio-group>
@@ -37,18 +38,23 @@
             class="stem-input"
           />
 
-          <div v-if="form.type === 'SINGLE_CHOICE'" class="options-area">
+          <div v-if="form.type === 'SINGLE_CHOICE' || form.type === 'MULTIPLE_CHOICE'" class="options-area">
             <div class="title-label" style="margin-top: 24px;">设置选项与正确答案</div>
             <div 
               class="option-item" 
               v-for="(opt, index) in form.options" 
               :key="index"
             >
-              <el-radio v-model="form.answer" :label="getLetter(index)" size="large">
+              <el-radio v-if="form.type === 'SINGLE_CHOICE'" v-model="form.answer" :label="getLetter(index)" size="large">
                 <span class="option-letter" :class="{ 'is-correct': form.answer === getLetter(index) }">
                   {{ getLetter(index) }}
                 </span>
               </el-radio>
+              <el-checkbox v-else v-model="form.answer" :label="getLetter(index)" size="large">
+                <span class="option-letter" :class="{ 'is-correct': form.answer.includes(getLetter(index)) }">
+                  {{ getLetter(index) }}
+                </span>
+              </el-checkbox>
               
               <el-input v-model="form.options[index]" placeholder="请输入选项内容" style="flex: 1; margin: 0 16px;" />
               
@@ -133,7 +139,7 @@ const getLetter = (index) => String.fromCharCode(65 + index)
 
 // 切换题型时，清空之前填写的答案，防止数据串线
 const handleTypeChange = () => {
-  form.value.answer = ''
+  form.value.answer = form.value.type === 'MULTIPLE_CHOICE' ? [] : ''
 }
 
 // 增加选项
@@ -143,9 +149,18 @@ const addOption = () => {
 
 // 删除选项
 const removeOption = (index) => {
+  const removedLetter = getLetter(index)
   form.value.options.splice(index, 1)
-  // 如果删掉的刚好是设为正确答案的那个，就把正确答案清空
-  if (form.value.answer === getLetter(index)) {
+  if (form.value.type === 'MULTIPLE_CHOICE') {
+    const selected = Array.isArray(form.value.answer) ? form.value.answer : []
+    form.value.answer = selected
+      .filter(letter => letter !== removedLetter)
+      .map(letter => {
+        const oldCode = letter.charCodeAt(0)
+        const removedCode = removedLetter.charCodeAt(0)
+        return oldCode > removedCode ? String.fromCharCode(oldCode - 1) : letter
+      })
+  } else if (form.value.answer === removedLetter) {
     form.value.answer = ''
   }
 }
@@ -154,23 +169,32 @@ const removeOption = (index) => {
 const handleSave = async () => {
   // 1. 严格的前端校验
   if (!form.value.stem.trim()) return ElMessage.warning('题干内容不能为空！')
-  if (!form.value.answer) return ElMessage.warning('请务必设置/选择一个正确答案！')
+  if (form.value.type === 'MULTIPLE_CHOICE') {
+    if (!Array.isArray(form.value.answer) || form.value.answer.length === 0) {
+      return ElMessage.warning('请至少选择一个正确答案！')
+    }
+  } else if (!form.value.answer) {
+    return ElMessage.warning('请务必设置/选择一个正确答案！')
+  }
   if (form.value.knowledgePoints.length === 0) return ElMessage.warning('请至少关联一个知识点！')
 
   // 2. 组装发给后端的 payload (严格对齐你的 CreateQuestionRequest DTO)
+  const normalizedAnswer = form.value.type === 'MULTIPLE_CHOICE'
+    ? [...new Set(form.value.answer)].sort().join(',')
+    : form.value.answer
   const payload = {
     type: form.value.type,
     stem: form.value.stem,
     knowledgePoints: form.value.knowledgePoints,
-    answer: form.value.answer,
+    answer: normalizedAnswer,
     options: []
   }
 
-  // 如果是单选题，需要额外校验并组装 options
-  if (form.value.type === 'SINGLE_CHOICE') {
+  // 选择题需要额外校验并组装 options
+  if (form.value.type === 'SINGLE_CHOICE' || form.value.type === 'MULTIPLE_CHOICE') {
     // 过滤掉完全没写字的空选项
     payload.options = form.value.options.filter(opt => opt.trim() !== '')
-    if (payload.options.length < 2) return ElMessage.warning('单选题至少需要 2 个有效选项！')
+    if (payload.options.length < 2) return ElMessage.warning('选择题至少需要 2 个有效选项！')
   }
 
   // 3. 发送真实请求

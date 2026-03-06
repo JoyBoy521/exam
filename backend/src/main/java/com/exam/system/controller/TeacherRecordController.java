@@ -3,6 +3,12 @@ package com.exam.system.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.exam.system.entity.*;
 import com.exam.system.mapper.*;
+import com.exam.system.service.AuditLogService;
+import com.exam.system.service.TeacherExamService;
+import com.exam.system.util.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -12,6 +18,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/teacher/records")
 public class TeacherRecordController {
+    private static final Logger log = LoggerFactory.getLogger(TeacherRecordController.class);
 
     private final ExamRecordMapper examRecordMapper;
     private final ExamRecordAnswerMapper examRecordAnswerMapper;
@@ -19,19 +26,25 @@ public class TeacherRecordController {
     private final StudentMapper studentMapper;
     private final ExamMapper examMapper;
     private final PaperQuestionMapper paperQuestionMapper;
+    private final TeacherExamService teacherExamService;
+    private final AuditLogService auditLogService;
 
     public TeacherRecordController(ExamRecordMapper examRecordMapper,
                                    ExamRecordAnswerMapper examRecordAnswerMapper,
                                    QuestionMapper questionMapper,
                                    StudentMapper studentMapper,
                                    ExamMapper examMapper,
-                                   PaperQuestionMapper paperQuestionMapper) {
+                                   PaperQuestionMapper paperQuestionMapper,
+                                   TeacherExamService teacherExamService,
+                                   AuditLogService auditLogService) {
         this.examRecordMapper = examRecordMapper;
         this.examRecordAnswerMapper = examRecordAnswerMapper;
         this.questionMapper = questionMapper;
         this.studentMapper = studentMapper;
         this.examMapper = examMapper;
         this.paperQuestionMapper = paperQuestionMapper;
+        this.teacherExamService = teacherExamService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/exam/{examId}")
@@ -64,7 +77,9 @@ public class TeacherRecordController {
     }
 
     @PostMapping("/{recordId}/grade")
-    public void gradeRecord(@PathVariable Long recordId, @RequestBody Map<String, Object> payload) {
+    public void gradeRecord(@PathVariable Long recordId,
+                            @RequestBody Map<String, Object> payload,
+                            HttpServletRequest request) {
         ExamRecord record = examRecordMapper.selectById(recordId);
         if (record == null) {
             throw new IllegalArgumentException("记录不存在");
@@ -77,6 +92,16 @@ public class TeacherRecordController {
         record.setTotalScore(objScore.add(subjectiveScore));
         record.setStatus("GRADED");
         examRecordMapper.updateById(record);
+        teacherExamService.syncWrongBookForRecord(recordId, record.getUserId());
+        log.info("AUDIT grade_record operator={} role={} recordId={} studentId={} subjectiveScore={}",
+                CurrentUser.loginName(request), CurrentUser.role(request), recordId, record.getUserId(), subjectiveScore);
+        auditLogService.record(
+                CurrentUser.userId(request),
+                "GRADE_RECORD",
+                "EXAM_RECORD",
+                recordId,
+                "studentId=" + record.getUserId() + ",subjectiveScore=" + subjectiveScore
+        );
     }
 
     @GetMapping("/{recordId}/subjective-answers")

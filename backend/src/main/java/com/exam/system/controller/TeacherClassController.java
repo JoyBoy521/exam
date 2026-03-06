@@ -5,10 +5,15 @@ import com.exam.system.entity.ClassInfo;
 import com.exam.system.entity.Student;
 import com.exam.system.mapper.ClassInfoMapper;
 import com.exam.system.mapper.StudentMapper;
+import com.exam.system.service.AuditLogService;
+import com.exam.system.util.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
@@ -21,14 +26,19 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/teacher")
 public class TeacherClassController {
+    private static final Logger log = LoggerFactory.getLogger(TeacherClassController.class);
 
     private final ClassInfoMapper classInfoMapper;
     private final StudentMapper studentMapper;
+    private final AuditLogService auditLogService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public TeacherClassController(ClassInfoMapper classInfoMapper, StudentMapper studentMapper) {
+    public TeacherClassController(ClassInfoMapper classInfoMapper,
+                                  StudentMapper studentMapper,
+                                  AuditLogService auditLogService) {
         this.classInfoMapper = classInfoMapper;
         this.studentMapper = studentMapper;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/classes")
@@ -146,7 +156,7 @@ public class TeacherClassController {
     }
 
     @PostMapping("/students/batch")
-    public Map<String, Object> batchAddStudents(@RequestBody Map<String, Object> payload) {
+    public Map<String, Object> batchAddStudents(@RequestBody Map<String, Object> payload, HttpServletRequest request) {
         Object classIdRaw = payload.get("classId");
         Object studentsRaw = payload.get("students");
         if (classIdRaw == null || !(studentsRaw instanceof List<?> students)) {
@@ -207,6 +217,15 @@ public class TeacherClassController {
         result.put("success", success);
         result.put("skipped", skipped);
         result.put("errors", errors);
+        log.info("AUDIT batch_import_students operator={} classId={} success={} skipped={}",
+                CurrentUser.loginName(request), classId, success, skipped);
+        auditLogService.record(
+                CurrentUser.userId(request),
+                "BATCH_IMPORT_STUDENTS",
+                "CLASS",
+                classId,
+                "success=" + success + ",skipped=" + skipped
+        );
         return result;
     }
 
@@ -224,7 +243,7 @@ public class TeacherClassController {
     }
 
     @PutMapping("/students/{id}")
-    public void updateStudent(@PathVariable Long id, @RequestBody Student payload) {
+    public void updateStudent(@PathVariable Long id, @RequestBody Student payload, HttpServletRequest request) {
         Student student = studentMapper.selectById(id);
         if (student == null) {
             throw new IllegalArgumentException("学生不存在");
@@ -237,16 +256,34 @@ public class TeacherClassController {
         student.setName(name);
         student.setPhone(phone.isBlank() ? null : phone);
         studentMapper.updateById(student);
+        log.info("AUDIT update_student operator={} studentId={} studentNo={}",
+                CurrentUser.loginName(request), id, student.getStudentNo());
+        auditLogService.record(
+                CurrentUser.userId(request),
+                "UPDATE_STUDENT",
+                "STUDENT",
+                id,
+                "studentNo=" + student.getStudentNo()
+        );
     }
 
     @PostMapping("/students/{id}/reset-password")
-    public String resetStudentPassword(@PathVariable Long id) {
+    public String resetStudentPassword(@PathVariable Long id, HttpServletRequest request) {
         Student student = studentMapper.selectById(id);
         if (student == null) {
             throw new IllegalArgumentException("学生不存在");
         }
         student.setPassword(passwordEncoder.encode("123456"));
         studentMapper.updateById(student);
+        log.info("AUDIT reset_student_password operator={} studentId={} studentNo={}",
+                CurrentUser.loginName(request), id, student.getStudentNo());
+        auditLogService.record(
+                CurrentUser.userId(request),
+                "RESET_STUDENT_PASSWORD",
+                "STUDENT",
+                id,
+                "studentNo=" + student.getStudentNo()
+        );
         return "已重置为初始密码 123456";
     }
 

@@ -118,7 +118,7 @@
     <el-card style="margin-top:16px;" shadow="never">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>防作弊风险汇总</span>
+          <span>防作弊风险汇总 <el-tag size="small" :type="wsConnected ? 'success' : 'info'" style="margin-left: 8px;">{{ wsConnected ? '实时' : '轮询' }}</el-tag></span>
           <el-select v-model="examId" placeholder="选择考试" style="width:260px" @change="fetchRisk">
             <el-option v-for="e in exams" :key="e.id" :label="e.title" :value="e.id" />
           </el-select>
@@ -142,7 +142,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import request from '../utils/request'
 
 const stat = ref({})
@@ -151,6 +151,10 @@ const exams = ref([])
 const examId = ref(null)
 const riskList = ref([])
 const loadingRisk = ref(false)
+let riskTimer = null
+let riskWs = null
+let wsReconnectTimer = null
+const wsConnected = ref(false)
 const advanced = ref({
   submissionTrend: [],
   abnormalClassRanking: [],
@@ -162,6 +166,7 @@ const advanced = ref({
 
 const typeNameMap = {
   SINGLE_CHOICE: '单选题',
+  MULTIPLE_CHOICE: '多选题',
   TRUE_FALSE: '判断题',
   SHORT_ANSWER: '简答题'
 }
@@ -235,9 +240,68 @@ const fetchRisk = async () => {
   }
 }
 
+const getRiskWsUrl = () => {
+  const token = localStorage.getItem('token') || ''
+  if (!token) return ''
+  const apiBase = request.defaults.baseURL || ''
+  const wsBase = apiBase.replace(/^http/i, 'ws').replace(/\/api\/?$/, '')
+  return `${wsBase}/ws/teacher-risk?token=${encodeURIComponent(token)}`
+}
+
+const connectRiskWs = () => {
+  const wsUrl = getRiskWsUrl()
+  if (!wsUrl) return
+  if (riskWs && (riskWs.readyState === WebSocket.OPEN || riskWs.readyState === WebSocket.CONNECTING)) return
+
+  riskWs = new WebSocket(wsUrl)
+  riskWs.onopen = () => {
+    wsConnected.value = true
+  }
+  riskWs.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data)
+      if (payload.kind === 'CHEAT_EVENT' && Number(payload.examId) === Number(examId.value)) {
+        fetchRisk()
+      }
+    } catch (_) {
+      // ignore malformed message
+    }
+  }
+  riskWs.onclose = () => {
+    wsConnected.value = false
+    if (wsReconnectTimer) clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = setTimeout(() => {
+      connectRiskWs()
+    }, 3000)
+  }
+  riskWs.onerror = () => {
+    wsConnected.value = false
+    try { riskWs?.close() } catch (_) {}
+  }
+}
+
 onMounted(() => {
   fetchOverview()
   fetchExams()
+  connectRiskWs()
+  riskTimer = setInterval(() => {
+    if (!wsConnected.value) fetchRisk()
+  }, 15000)
+})
+
+onUnmounted(() => {
+  if (riskTimer) {
+    clearInterval(riskTimer)
+    riskTimer = null
+  }
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = null
+  }
+  if (riskWs) {
+    try { riskWs.close() } catch (_) {}
+    riskWs = null
+  }
 })
 </script>
 

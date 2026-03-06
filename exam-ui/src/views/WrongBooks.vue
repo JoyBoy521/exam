@@ -45,7 +45,7 @@
             <el-collapse-item title="查看题目原题与解析" name="1">
               <div class="options-area" v-if="item.options">
                 <div v-for="(opt, idx) in item.options" :key="idx" class="opt-line"
-                     :class="{ 'is-correct': getLetter(idx) === item.correctAnswer }">
+                     :class="{ 'is-correct': hasChoice(item.correctAnswer, getLetter(idx)) }">
                   {{ getLetter(idx) }}. {{ opt }}
                 </div>
               </div>
@@ -69,8 +69,15 @@ import request from '../utils/request'
 const bookList = ref([])
 const loading = ref(false)
 
-const formatType = (t) => ({ 'SINGLE_CHOICE': '单选题', 'TRUE_FALSE': '判断题', 'SHORT_ANSWER': '简答题' }[t] || t)
+const formatType = (t) => ({ 'SINGLE_CHOICE': '单选题', 'MULTIPLE_CHOICE': '多选题', 'TRUE_FALSE': '判断题', 'SHORT_ANSWER': '简答题' }[t] || t)
 const getLetter = (idx) => String.fromCharCode(65 + idx)
+const hasChoice = (answer, letter) => {
+  if (!answer) return false
+  return String(answer)
+    .split(',')
+    .map(x => x.trim().toUpperCase())
+    .includes(String(letter).trim().toUpperCase())
+}
 
 const fetchList = async () => {
   loading.value = true

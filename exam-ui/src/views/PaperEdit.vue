@@ -17,6 +17,7 @@
         <div class="filter-section">
           <el-select v-model="query.type" placeholder="题型" size="small" style="width: 120px;" clearable @change="fetchQuestions">
             <el-option label="单选题" value="SINGLE_CHOICE" />
+            <el-option label="多选题" value="MULTIPLE_CHOICE" />
             <el-option label="判断题" value="TRUE_FALSE" />
             <el-option label="简答题" value="SHORT_ANSWER" />
           </el-select>
@@ -84,7 +85,7 @@ const totalScore = computed(() => {
   return selectedQuestions.value.reduce((sum, q) => sum + (q.score || 0), 0)
 })
 
-const formatType = (t) => ({ 'SINGLE_CHOICE': '单选', 'TRUE_FALSE': '判断', 'SHORT_ANSWER': '简答' }[t] || t)
+const formatType = (t) => ({ 'SINGLE_CHOICE': '单选', 'MULTIPLE_CHOICE': '多选', 'TRUE_FALSE': '判断', 'SHORT_ANSWER': '简答' }[t] || t)
 const isSelected = (id) => selectedQuestions.value.some(sq => sq.id === id)
 
 const fetchQuestions = async () => {

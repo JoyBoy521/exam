@@ -71,6 +71,7 @@
             <div v-for="(rule, index) in form.randomRules" :key="index" style="display: flex; gap: 8px; margin-bottom: 10px;">
               <el-select v-model="rule.questionType" placeholder="题型" style="flex: 1.5;">
                 <el-option label="单选题" value="SINGLE_CHOICE" />
+                <el-option label="多选题" value="MULTIPLE_CHOICE" />
                 <el-option label="判断题" value="TRUE_FALSE" />
                 <el-option label="简答题" value="SHORT_ANSWER" />
               </el-select>

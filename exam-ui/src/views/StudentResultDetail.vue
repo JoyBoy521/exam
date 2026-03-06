@@ -29,8 +29,8 @@
           <div v-for="(opt, idx) in item.options" :key="idx" 
                class="opt-item"
                :class="{ 
-                 'is-correct': getLetter(idx) === item.correctAnswer,
-                 'is-wrong': getLetter(idx) === item.studentAnswer && item.studentAnswer !== item.correctAnswer 
+                 'is-correct': hasChoice(item.correctAnswer, getLetter(idx)),
+                 'is-wrong': hasChoice(item.studentAnswer, getLetter(idx)) && !hasChoice(item.correctAnswer, getLetter(idx))
                }">
             {{ getLetter(idx) }}. {{ opt }}
           </div>
@@ -85,8 +85,15 @@ const loading = ref(false)
 const collectVisible = ref(false)
 const collectForm = ref({ questionId: null, errorType: '知识盲区', notes: '' })
 
-const formatType = (t) => ({ 'SINGLE_CHOICE': '单选题', 'TRUE_FALSE': '判断题', 'SHORT_ANSWER': '简答题' }[t] || t)
+const formatType = (t) => ({ 'SINGLE_CHOICE': '单选题', 'MULTIPLE_CHOICE': '多选题', 'TRUE_FALSE': '判断题', 'SHORT_ANSWER': '简答题' }[t] || t)
 const getLetter = (i) => String.fromCharCode(65 + i)
+const hasChoice = (answer, letter) => {
+  if (!answer) return false
+  return String(answer)
+    .split(',')
+    .map(x => x.trim().toUpperCase())
+    .includes(String(letter).trim().toUpperCase())
+}
 
 const fetchDetail = async () => {
   loading.value = true
