@@ -11,6 +11,7 @@ import com.exam.system.mapper.ExamHeartbeatMapper;
 import com.exam.system.mapper.ExamMapper;
 import com.exam.system.mapper.ExamRecordMapper;
 import com.exam.system.mapper.StudentMapper;
+import com.exam.system.service.TeacherRiskPushService;
 import com.exam.system.util.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -29,17 +30,20 @@ public class StudentExamProgressController {
     private final ExamRecordMapper examRecordMapper;
     private final ExamAnswerDraftMapper examAnswerDraftMapper;
     private final ExamHeartbeatMapper examHeartbeatMapper;
+    private final TeacherRiskPushService teacherRiskPushService;
 
     public StudentExamProgressController(ExamMapper examMapper,
                                          StudentMapper studentMapper,
                                          ExamRecordMapper examRecordMapper,
                                          ExamAnswerDraftMapper examAnswerDraftMapper,
-                                         ExamHeartbeatMapper examHeartbeatMapper) {
+                                         ExamHeartbeatMapper examHeartbeatMapper,
+                                         TeacherRiskPushService teacherRiskPushService) {
         this.examMapper = examMapper;
         this.studentMapper = studentMapper;
         this.examRecordMapper = examRecordMapper;
         this.examAnswerDraftMapper = examAnswerDraftMapper;
         this.examHeartbeatMapper = examHeartbeatMapper;
+        this.teacherRiskPushService = teacherRiskPushService;
     }
 
     @PostMapping("/{examId}/progress/save")
@@ -150,6 +154,13 @@ public class StudentExamProgressController {
         } else {
             examHeartbeatMapper.updateById(heartbeat);
         }
+        teacherRiskPushService.pushHeartbeat(
+                examId,
+                studentId,
+                heartbeat.getAnsweredCount(),
+                heartbeat.getTotalCount(),
+                heartbeat.getTimeLeftSeconds()
+        );
         return "ok";
     }
 

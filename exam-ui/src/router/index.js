@@ -21,6 +21,7 @@ const routes = [
       { path: 'paper', component: () => import('../views/Paper.vue') },
       { path: 'paper/edit', component: () => import('../views/PaperEdit.vue') },
       { path: 'exam', component: () => import('../views/Exam.vue') },
+      { path: 'monitor', component: () => import('../views/Monitor.vue') },
       { path: 'marking/:examId', component: () => import('../views/Marking.vue') },
       { path: 'class', component: () => import('../views/ClassManage.vue') },
       { path: 'stat', component: () => import('../views/Stat.vue') },

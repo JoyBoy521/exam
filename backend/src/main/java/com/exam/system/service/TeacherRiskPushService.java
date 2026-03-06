@@ -33,4 +33,24 @@ public class TeacherRiskPushService {
             // Ignore serialization failure to avoid blocking exam flow.
         }
     }
+
+    public void pushHeartbeat(Long examId,
+                              Long studentId,
+                              Integer answeredCount,
+                              Integer totalCount,
+                              Integer timeLeftSeconds) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("kind", "HEARTBEAT");
+        payload.put("examId", examId);
+        payload.put("studentId", studentId);
+        payload.put("answeredCount", answeredCount);
+        payload.put("totalCount", totalCount);
+        payload.put("timeLeftSeconds", timeLeftSeconds);
+        payload.put("ts", System.currentTimeMillis());
+        try {
+            webSocketHandler.broadcast(objectMapper.writeValueAsString(payload));
+        } catch (JsonProcessingException ignore) {
+            // Ignore serialization failure to avoid blocking exam flow.
+        }
+    }
 }

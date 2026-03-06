@@ -46,6 +46,10 @@
           <el-icon><Monitor /></el-icon>
           <template #title>考试</template>
         </el-menu-item>
+        <el-menu-item index="/monitor">
+          <el-icon><Monitor /></el-icon>
+          <template #title>监考台</template>
+        </el-menu-item>
         <el-menu-item index="/question">
           <el-icon><Files /></el-icon>
           <template #title>题库</template>
@@ -149,6 +153,7 @@ const currentRouteName = computed(() => {
     '/question': '题库管理',
     '/paper': '试卷管理',
     '/exam': '考试发布',
+    '/monitor': '教师监考台',
     '/class': '班级管理',
     '/stat': '统计分析',
     '/manage': '管理中心'
