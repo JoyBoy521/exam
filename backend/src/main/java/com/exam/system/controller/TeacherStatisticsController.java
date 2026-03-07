@@ -3,6 +3,7 @@ package com.exam.system.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.exam.system.entity.*;
 import com.exam.system.mapper.*;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,22 +37,29 @@ public class TeacherStatisticsController {
     }
 
     @GetMapping("/advanced")
-    public Map<String, Object> advanced() {
+    public Map<String, Object> advanced(@RequestParam(required = false) Long examId,
+                                        @RequestParam(defaultValue = "7") Integer days) {
+        int safeDays = normalizeDays(days);
         Map<String, Object> result = new HashMap<>();
-        result.put("submissionTrend", buildSubmissionTrend());
-        result.put("abnormalClassRanking", buildAbnormalClassRanking());
-        result.put("passRateLayers", buildPassRateLayers(result));
+        result.put("examId", examId);
+        result.put("days", safeDays);
+        result.put("submissionTrend", buildSubmissionTrend(examId, safeDays));
+        result.put("abnormalClassRanking", buildAbnormalClassRanking(examId));
+        result.put("passRateLayers", buildPassRateLayers(result, examId));
         return result;
     }
 
-    private List<Map<String, Object>> buildSubmissionTrend() {
+    private List<Map<String, Object>> buildSubmissionTrend(Long examId, int days) {
         LocalDate today = LocalDate.now();
-        LocalDate from = today.minusDays(6);
+        LocalDate from = today.minusDays(days - 1L);
 
         Map<LocalDate, Long> dateCount = new HashMap<>();
-        List<ExamRecord> records = examRecordMapper.selectList(
-                new LambdaQueryWrapper<ExamRecord>().isNotNull(ExamRecord::getSubmitTime)
-        );
+        LambdaQueryWrapper<ExamRecord> query = new LambdaQueryWrapper<ExamRecord>()
+                .isNotNull(ExamRecord::getSubmitTime);
+        if (examId != null) {
+            query.eq(ExamRecord::getExamId, examId);
+        }
+        List<ExamRecord> records = examRecordMapper.selectList(query);
         for (ExamRecord record : records) {
             LocalDateTime submitTime = record.getSubmitTime();
             if (submitTime == null) {
@@ -65,7 +73,7 @@ public class TeacherStatisticsController {
         }
 
         List<Map<String, Object>> trend = new ArrayList<>();
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < days; i++) {
             LocalDate day = from.plusDays(i);
             Map<String, Object> row = new HashMap<>();
             row.put("date", day.toString());
@@ -75,8 +83,12 @@ public class TeacherStatisticsController {
         return trend;
     }
 
-    private List<Map<String, Object>> buildAbnormalClassRanking() {
-        List<ExamCheatEvent> events = examCheatEventMapper.selectList(null);
+    private List<Map<String, Object>> buildAbnormalClassRanking(Long examId) {
+        LambdaQueryWrapper<ExamCheatEvent> query = new LambdaQueryWrapper<>();
+        if (examId != null) {
+            query.eq(ExamCheatEvent::getExamId, examId);
+        }
+        List<ExamCheatEvent> events = examCheatEventMapper.selectList(query);
         if (events.isEmpty()) {
             return List.of();
         }
@@ -124,6 +136,9 @@ public class TeacherStatisticsController {
                     row.put("riskStudentCount", agg.riskStudentIds.size());
                     row.put("riskScore", agg.totalRisk);
                     row.put("avgRiskScore", agg.riskStudentIds.isEmpty() ? 0 : Math.round((agg.totalRisk * 1.0 / agg.riskStudentIds.size()) * 100.0) / 100.0);
+                    row.put("cheatRate", classInfo == null || classInfo.getStudentCount() == null || classInfo.getStudentCount() <= 0
+                            ? 0
+                            : Math.round(agg.riskStudentIds.size() * 10000.0 / classInfo.getStudentCount()) / 100.0);
                     return row;
                 })
                 .sorted((a, b) -> {
@@ -137,8 +152,12 @@ public class TeacherStatisticsController {
                 .toList();
     }
 
-    private List<Map<String, Object>> buildPassRateLayers(Map<String, Object> resultContainer) {
-        List<ExamRecord> records = examRecordMapper.selectList(null);
+    private List<Map<String, Object>> buildPassRateLayers(Map<String, Object> resultContainer, Long examId) {
+        LambdaQueryWrapper<ExamRecord> query = new LambdaQueryWrapper<>();
+        if (examId != null) {
+            query.eq(ExamRecord::getExamId, examId);
+        }
+        List<ExamRecord> records = examRecordMapper.selectList(query);
         long graded = 0;
         long excellent = 0;
         long good = 0;
@@ -176,6 +195,17 @@ public class TeacherStatisticsController {
         resultContainer.put("pendingCount", pending);
         resultContainer.put("overallPassRate", overallPassRate);
         return layers;
+    }
+
+    private int normalizeDays(Integer days) {
+        int raw = days == null ? 7 : days;
+        if (raw <= 0) {
+            return 7;
+        }
+        if (raw > 60) {
+            return 60;
+        }
+        return raw;
     }
 
     private Map<String, Object> layerRow(String label, long count, long total) {

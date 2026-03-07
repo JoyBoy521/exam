@@ -1,5 +1,21 @@
 <template>
   <div class="stat-page">
+    <el-card shadow="never">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <el-select v-model="advancedExamId" clearable placeholder="统计考试范围" style="width:260px" @change="fetchOverview">
+          <el-option label="全部考试" :value="null" />
+          <el-option v-for="e in exams" :key="e.id" :label="e.title" :value="e.id" />
+        </el-select>
+        <el-select v-model="trendDays" style="width:120px" @change="fetchOverview">
+          <el-option :value="7" label="近7天" />
+          <el-option :value="15" label="近15天" />
+          <el-option :value="30" label="近30天" />
+        </el-select>
+        <el-button @click="fetchOverview">刷新统计</el-button>
+        <el-button type="success" plain @click="exportAdvancedCsv">导出统计CSV</el-button>
+      </div>
+    </el-card>
+
     <el-row :gutter="16" class="cards">
       <el-col :span="6"><el-card><div class="k">题目数</div><div class="v">{{ stat.questionCount || 0 }}</div></el-card></el-col>
       <el-col :span="6"><el-card><div class="k">试卷数</div><div class="v">{{ stat.paperCount || 0 }}</div></el-card></el-col>
@@ -65,6 +81,9 @@
             <el-table-column prop="className" label="班级" />
             <el-table-column prop="riskScore" label="风险分" width="90" />
             <el-table-column prop="riskStudentCount" label="异常人数" width="90" />
+            <el-table-column prop="cheatRate" label="异常率" width="90">
+              <template #default="scope">{{ scope.row.cheatRate || 0 }}%</template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-col>
@@ -145,11 +164,14 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import request, { getWsBase } from '../utils/request'
 import { riskLevelMeta } from '../utils/format'
+import { exportCsvRows } from '../utils/export'
 
 const stat = ref({})
 const todo = ref({})
 const exams = ref([])
 const examId = ref(null)
+const advancedExamId = ref(null)
+const trendDays = ref(7)
 const riskList = ref([])
 const loadingRisk = ref(false)
 let riskTimer = null
@@ -213,10 +235,14 @@ const abnormalClassRows = computed(() => advanced.value.abnormalClassRanking || 
 const passLayerRows = computed(() => advanced.value.passRateLayers || [])
 
 const fetchOverview = async () => {
+  const advancedParams = {
+    examId: advancedExamId.value || undefined,
+    days: trendDays.value
+  }
   const [s, t, a] = await Promise.all([
     request.get('/teacher/statistics'),
     request.get('/teacher/todo'),
-    request.get('/teacher/statistics/advanced')
+    request.get('/teacher/statistics/advanced', { params: advancedParams })
   ])
   stat.value = s
   todo.value = t
@@ -229,6 +255,27 @@ const fetchExams = async () => {
     examId.value = exams.value[0].id
     fetchRisk()
   }
+}
+
+const exportAdvancedCsv = () => {
+  const rows = []
+  for (const row of trendRows.value) {
+    rows.push(['交卷趋势', row.date, row.count, '', '', '', ''])
+  }
+  for (const row of abnormalClassRows.value) {
+    rows.push(['异常班级', row.className, row.riskScore, row.riskStudentCount, row.eventCount || 0, `${row.cheatRate || 0}%`, ''])
+  }
+  for (const row of passLayerRows.value) {
+    rows.push(['通过率分层', row.label, row.count, `${row.rate}%`, '', '', ''])
+  }
+  if (rows.length === 0) {
+    return
+  }
+  exportCsvRows(
+    ['模块', '维度1', '维度2', '维度3', '维度4', '维度5', '备注'],
+    rows,
+    `teacher_statistics_${Date.now()}.csv`
+  )
 }
 
 const fetchRisk = async () => {

@@ -100,6 +100,37 @@ public class TeacherClassController {
         return studentMapper.selectList(wrapper);
     }
 
+    @GetMapping("/classes/{classId}/students/page")
+    public Map<String, Object> getStudentsByClassPage(@PathVariable Long classId,
+                                                      @RequestParam(defaultValue = "1") Integer page,
+                                                      @RequestParam(defaultValue = "20") Integer size,
+                                                      @RequestParam(required = false) String keyword) {
+        List<Student> rows = getStudentsByClass(classId);
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase();
+        if (!kw.isEmpty()) {
+            rows = rows.stream().filter(s ->
+                    (s.getName() != null && s.getName().toLowerCase().contains(kw))
+                            || (s.getStudentNo() != null && s.getStudentNo().toLowerCase().contains(kw))
+            ).toList();
+        }
+        rows = rows.stream()
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .toList();
+        int safeSize = (size == null || size <= 0) ? 20 : Math.min(size, 200);
+        int safePage = (page == null || page <= 0) ? 1 : page;
+        int total = rows.size();
+        int from = Math.max(0, (safePage - 1) * safeSize);
+        int to = Math.min(total, from + safeSize);
+        List<Student> list = from >= total ? List.of() : rows.subList(from, to);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        return result;
+    }
+
     @GetMapping("/classes/{classId}/students/export")
     public ResponseEntity<byte[]> exportStudentsCsv(@PathVariable Long classId) {
         ClassInfo classInfo = classInfoMapper.selectById(classId);

@@ -41,7 +41,7 @@
       <div v-if="activeClass" class="main-content">
         <div class="main-header">
           <div class="class-title">
-            {{ activeClass.name }} <el-tag size="small" type="info" style="margin-left: 10px;">共 {{ filteredStudents.length }} 人</el-tag>
+            {{ activeClass.name }} <el-tag size="small" type="info" style="margin-left: 10px;">共 {{ totalStudents }} 人</el-tag>
           </div>
           <div class="actions">
             <el-button type="primary" plain @click="dialogStudentVisible = true">
@@ -57,7 +57,7 @@
           </div>
         </div>
 
-        <el-table :data="pagedStudents" class="custom-table" :header-cell-style="{ background: '#f5f7fa', color: '#606266' }">
+        <el-table :data="studentList" class="custom-table" :header-cell-style="{ background: '#f5f7fa', color: '#606266' }">
           <el-table-column type="selection" width="55" />
           <el-table-column prop="studentNo" label="学号" width="150" />
           <el-table-column prop="name" label="姓名" width="150">
@@ -83,10 +83,12 @@
           <el-pagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
-            :total="filteredStudents.length"
+            :total="totalStudents"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next"
             background
+            @size-change="fetchStudentsPage"
+            @current-change="fetchStudentsPage"
           />
         </div>
       </div>
@@ -190,19 +192,11 @@ const classList = ref([])
 const activeClassId = ref(null)
 const activeClass = computed(() => classList.value.find(c => c.id === activeClassId.value))
 const studentList = ref([])
+const totalStudents = ref(0)
 const studentKeyword = ref('')
 const classKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
-
-const filteredStudents = computed(() => {
-  const kw = studentKeyword.value.trim().toLowerCase()
-  if (!kw) return studentList.value
-  return studentList.value.filter(s =>
-    (s.name || '').toLowerCase().includes(kw) ||
-    (s.studentNo || '').toLowerCase().includes(kw)
-  )
-})
 
 const filteredClasses = computed(() => {
   const kw = classKeyword.value.trim().toLowerCase()
@@ -210,14 +204,9 @@ const filteredClasses = computed(() => {
   return classList.value.filter(c => (c.name || '').toLowerCase().includes(kw))
 })
 
-const pagedStudents = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredStudents.value.slice(start, end)
-})
-
-watch(filteredStudents, () => {
+watch(studentKeyword, () => {
   currentPage.value = 1
+  fetchStudentsPage()
 })
 
 const fetchClasses = async () => {
@@ -232,10 +221,23 @@ const fetchClasses = async () => {
   }
 }
 
+const fetchStudentsPage = async () => {
+  if (!activeClassId.value) return
+  const res = await request.get(`/teacher/classes/${activeClassId.value}/students/page`, {
+    params: {
+      page: currentPage.value,
+      size: pageSize.value,
+      keyword: studentKeyword.value || undefined
+    }
+  })
+  studentList.value = res.list || []
+  totalStudents.value = Number(res.total || 0)
+}
+
 const selectClass = async (item) => {
   activeClassId.value = item.id
-  studentList.value = await request.get(`/teacher/classes/${item.id}/students`)
   currentPage.value = 1
+  await fetchStudentsPage()
 }
 
 onMounted(fetchClasses)
@@ -307,7 +309,7 @@ const saveStudent = async () => {
   ElMessage.success('添加学生成功（初始密码：123456）')
   dialogStudentVisible.value = false
   studentForm.value = { studentNo: '', name: '', phone: '' }
-  await selectClass(activeClass.value)
+  await fetchStudentsPage()
   await fetchClasses()
 }
 
@@ -344,7 +346,7 @@ const submitBatch = async () => {
   })
   batchErrors.value = res.errors || []
   ElMessage.success(`导入完成：成功 ${res.success || 0}，跳过 ${res.skipped || 0}`)
-  await selectClass(activeClass.value)
+  await fetchStudentsPage()
   await fetchClasses()
   if ((res.skipped || 0) === 0) {
     dialogBatchVisible.value = false
@@ -387,7 +389,7 @@ const removeStudent = (id) => {
   ElMessageBox.confirm('确认将该学生移出本班级吗？', '提示', { type: 'warning' }).then(async () => {
     await request.delete(`/teacher/students/${id}`)
     ElMessage.success('已移出')
-    await selectClass(activeClass.value)
+    await fetchStudentsPage()
     await fetchClasses()
   }).catch(() => {})
 }
@@ -420,7 +422,7 @@ const saveEditStudent = async () => {
   })
   ElMessage.success('学生信息已更新')
   dialogEditStudentVisible.value = false
-  await selectClass(activeClass.value)
+  await fetchStudentsPage()
 }
 
 const resetPassword = (id) => {
