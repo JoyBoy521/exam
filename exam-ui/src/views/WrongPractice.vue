@@ -100,6 +100,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
 import { masteryMeta } from '../utils/format'
@@ -109,6 +110,7 @@ const questions = ref([])
 const answers = ref({})
 const result = ref(null)
 const limit = ref(20)
+const route = useRoute()
 
 const getLetter = (idx) => String.fromCharCode(65 + idx)
 const formatType = (t) => ({ SINGLE_CHOICE: '单选题', MULTIPLE_CHOICE: '多选题', TRUE_FALSE: '判断题', SHORT_ANSWER: '简答题' }[t] || t)
@@ -120,7 +122,12 @@ const stripHtml = (html) => String(html || '').replace(/<[^>]*>/g, '')
 const fetchQuestions = async () => {
   loading.value = true
   try {
-    const data = await request.get('/student/wrong-book/practice', { params: { limit: limit.value } })
+    const data = await request.get('/student/wrong-book/practice', {
+      params: {
+        limit: limit.value,
+        courseId: route.query.courseId ? Number(route.query.courseId) : undefined
+      }
+    })
     questions.value = data || []
     result.value = null
     const newAnswers = {}

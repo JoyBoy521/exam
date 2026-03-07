@@ -14,6 +14,7 @@ public class Exam {
     private Long id;
 
     private String title;
+    private Long courseId;
     private Long classId;       // 新增：发放目标班级
     private String paperIds;    // 修改：试卷IDs (存比如 "1,2,3" 代表三套平行卷)
 

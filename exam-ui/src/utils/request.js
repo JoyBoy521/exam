@@ -26,6 +26,8 @@ request.interceptors.response.use(
     if (error.response?.status === 401) {
       ElMessage.warning('请先登录！')
       localStorage.removeItem('token')
+      localStorage.removeItem('role')
+      localStorage.removeItem('username')
       router.push('/login')
     } else {
       if (!error.response) {

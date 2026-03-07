@@ -13,6 +13,7 @@ export const makeupStatusMeta = (status) => {
   if (status === 'PENDING') return { text: '待审核', tag: 'warning' }
   if (status === 'APPROVED') return { text: '已批准', tag: 'success' }
   if (status === 'REJECTED') return { text: '已驳回', tag: 'danger' }
+  if (status === 'CANCELED') return { text: '已撤回', tag: 'info' }
   return { text: status || '-', tag: 'info' }
 }
 

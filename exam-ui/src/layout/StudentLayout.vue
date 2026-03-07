@@ -49,23 +49,26 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Document, Edit, Reading, Bell, ArrowDown } from '@element-plus/icons-vue'
+import { Monitor, Document, Edit, Reading, Bell, ArrowDown, Collection } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
 
 // 这里的姓名建议从 localStorage 获取
-const studentName = ref(localStorage.getItem('username') || '何光')
+const studentName = ref(localStorage.getItem('username') || '学生')
 const currentPath = computed(() => route.path)
 
 // 侧边栏功能精简：只保留核心考试业务
 const menuItems = [
+  { name: '课程中心', path: '/student/courses', icon: Collection },
   { name: '考试中心', path: '/student/exam', icon: Monitor },
   { name: '我的成绩', path: '/student/results', icon: Document },
   { name: '错题本', path: '/student/wrong-books', icon: Edit },
   { name: '错题重练', path: '/student/wrong-practice', icon: Reading },
+  { name: '补考申请', path: '/student/makeup', icon: Document },
   { name: '系统通知', path: '/student/notices', icon: Bell },
 ]
 
@@ -74,11 +77,22 @@ const navigateTo = (path) => {
 }
 
 const handleCommand = (command) => {
+  if (command === 'profile') {
+    router.push('/student/profile')
+    return
+  }
   if (command === 'logout') {
     localStorage.clear()
     router.push('/login')
   }
 }
+
+onMounted(() => {
+  const key = 'onboarding_student_layout_v1'
+  if (localStorage.getItem(key)) return
+  ElMessage.info('学生端菜单：考试中心 -> 我的成绩 -> 错题本 -> 错题重练。')
+  localStorage.setItem(key, '1')
+})
 </script>
 
 <style scoped>

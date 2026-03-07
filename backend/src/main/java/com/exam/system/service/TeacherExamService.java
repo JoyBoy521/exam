@@ -58,6 +58,9 @@ public class TeacherExamService {
 
         Exam exam = new Exam();
         exam.setTitle((String) payload.get("title"));
+        if (payload.get("courseId") != null && !String.valueOf(payload.get("courseId")).isBlank()) {
+            exam.setCourseId(Long.valueOf(payload.get("courseId").toString()));
+        }
         exam.setClassId(Long.valueOf(payload.get("classId").toString()));
 
         List<?> pIdsRaw = (List<?>) payload.get("paperIds");
@@ -80,6 +83,10 @@ public class TeacherExamService {
     }
 
     public List<Exam> listExams(String keyword, String status, Long classId) {
+        return listExams(keyword, status, classId, null);
+    }
+
+    public List<Exam> listExams(String keyword, String status, Long classId, Long courseId) {
         LambdaQueryWrapper<Exam> query = new LambdaQueryWrapper<>();
         if (keyword != null && !keyword.isBlank()) {
             query.like(Exam::getTitle, keyword.trim());
@@ -89,6 +96,9 @@ public class TeacherExamService {
         }
         if (classId != null) {
             query.eq(Exam::getClassId, classId);
+        }
+        if (courseId != null) {
+            query.eq(Exam::getCourseId, courseId);
         }
         query.orderByDesc(Exam::getCreateTime);
         List<Exam> exams = examMapper.selectList(query);
@@ -111,6 +121,10 @@ public class TeacherExamService {
     }
 
     public List<Exam> listStudentAvailableExams(Long studentId) {
+        return listStudentAvailableExams(studentId, null);
+    }
+
+    public List<Exam> listStudentAvailableExams(Long studentId, Long courseId) {
         Student student = studentMapper.selectById(studentId);
         if (student == null) {
             throw new IllegalArgumentException("学生不存在");
@@ -119,6 +133,9 @@ public class TeacherExamService {
         LambdaQueryWrapper<Exam> query = new LambdaQueryWrapper<>();
         if (student.getClassId() != null) {
             query.eq(Exam::getClassId, student.getClassId());
+        }
+        if (courseId != null) {
+            query.eq(Exam::getCourseId, courseId);
         }
         query.orderByDesc(Exam::getCreateTime);
 

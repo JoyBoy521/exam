@@ -1,230 +1,283 @@
 <template>
-  <div class="login-wrapper">
-    <div class="login-container">
-      <div class="login-left">
-        <div class="left-content">
-          <img src="https://cube.elemecdn.com/6/94/4d3ea53c084bad6931a56d5158a48jpeg.jpeg" alt="logo" class="logo" />
-          <h2>智能在线考试平台</h2>
-          <p>公平 · 高效 · 智能的现代化教务系统</p>
-        </div>
+  <div class="auth-page">
+    <div class="brand-panel">
+      <div class="brand-badge">Nanyang Normal University</div>
+      <h1>智能在线考试平台</h1>
+      <p>考试、监考、阅卷、复盘，一体化闭环。</p>
+      <div class="brand-kpis">
+        <div class="kpi"><b>稳定</b><span>自动保存与心跳保活</span></div>
+        <div class="kpi"><b>公平</b><span>随机试卷与风险监测</span></div>
+        <div class="kpi"><b>高效</b><span>客观题自动判分</span></div>
       </div>
+    </div>
 
-      <div class="login-right">
-        <div class="form-box">
-          <h3 class="title">欢迎登录</h3>
-          
-          <el-tabs v-model="loginForm.role" class="role-tabs">
-            <el-tab-pane label="🎓 学生端" name="STUDENT"></el-tab-pane>
-            <el-tab-pane label="👨‍🏫 教师/管理端" name="TEACHER"></el-tab-pane>
-          </el-tabs>
+    <div class="form-panel">
+      <el-card shadow="never" class="auth-card">
+        <template #header>
+          <div class="header-row">
+            <span class="title">账号登录</span>
+            <el-tag type="info" size="small">{{ identity === 'STUDENT' ? '学生端' : '教师端' }}</el-tag>
+          </div>
+        </template>
 
-          <el-form :model="loginForm" :rules="rules" ref="loginRef" size="large">
-            <el-form-item prop="username">
-              <el-input 
-                v-model="loginForm.username" 
-                :prefix-icon="User" 
-                placeholder="请输入学号 / 工号"
-                @keyup.enter="handleLogin"
-              />
-            </el-form-item>
-            
-            <el-form-item prop="password">
-              <el-input 
-                v-model="loginForm.password" 
-                type="password" 
-                :prefix-icon="Lock" 
-                placeholder="请输入密码" 
-                show-password
-                @keyup.enter="handleLogin"
-              />
-            </el-form-item>
+        <el-segmented
+          v-model="identity"
+          :options="[
+            { label: '学生', value: 'STUDENT' },
+            { label: '教师/管理员', value: 'TEACHER' }
+          ]"
+          style="width: 100%; margin-bottom: 14px;"
+        />
 
-            <el-form-item>
-              <el-button 
-                type="primary" 
-                class="submit-btn" 
-                :loading="loading" 
-                @click="handleLogin"
-              >
-                {{ loading ? '登录中...' : '登 录' }}
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-      </div>
+        <el-segmented
+          v-if="identity === 'STUDENT'"
+          v-model="studentMode"
+          :options="[
+            { label: '登录', value: 'LOGIN' },
+            { label: '注册', value: 'REGISTER' }
+          ]"
+          style="width: 100%; margin-bottom: 14px;"
+        />
+
+        <el-form
+          v-if="identity !== 'STUDENT' || studentMode === 'LOGIN'"
+          ref="loginRef"
+          :model="loginForm"
+          :rules="loginRules"
+          size="large"
+        >
+          <el-form-item prop="username">
+            <el-input v-model="loginForm.username" :prefix-icon="User" :placeholder="identity === 'STUDENT' ? '请输入学号' : '请输入教师账号'" />
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input v-model="loginForm.password" type="password" :prefix-icon="Lock" show-password placeholder="请输入密码" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" class="submit-btn" :loading="loadingLogin" @click="handleLogin">
+              {{ loadingLogin ? '登录中...' : '登录' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+
+        <el-form
+          v-else
+          ref="registerRef"
+          :model="registerForm"
+          :rules="registerRules"
+          size="large"
+        >
+          <el-form-item prop="studentNo">
+            <el-input v-model="registerForm.studentNo" :prefix-icon="User" placeholder="学号（4-32位）" />
+          </el-form-item>
+          <el-form-item prop="name">
+            <el-input v-model="registerForm.name" placeholder="姓名" />
+          </el-form-item>
+          <el-form-item prop="classId">
+            <el-select v-model="registerForm.classId" placeholder="选择班级" style="width: 100%;" filterable>
+              <el-option v-for="c in classOptions" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item prop="password">
+            <el-input v-model="registerForm.password" type="password" :prefix-icon="Lock" show-password placeholder="密码（至少6位）" />
+          </el-form-item>
+          <el-form-item prop="confirmPassword">
+            <el-input v-model="registerForm.confirmPassword" type="password" :prefix-icon="Lock" show-password placeholder="确认密码" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" class="submit-btn" :loading="loadingRegister" @click="handleRegister">
+              {{ loadingRegister ? '注册中...' : '注册并返回登录' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import request from '../utils/request' // 确保你的 axios 实例路径正确
+import request from '../utils/request'
 
 const router = useRouter()
-const loginRef = ref(null)
-const loading = ref(false)
+const identity = ref('STUDENT')
+const studentMode = ref('LOGIN')
+const classOptions = ref([])
 
+const loginRef = ref(null)
+const loadingLogin = ref(false)
 const loginForm = reactive({
   username: '',
-  password: '',
-  role: 'STUDENT'
+  password: ''
 })
+const loginRules = {
+  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
 
-const rules = {
-  username: [{ required: true, message: '账号不能为空', trigger: 'blur' }],
-  password: [{ required: true, message: '密码不能为空', trigger: 'blur' }]
+const registerRef = ref(null)
+const loadingRegister = ref(false)
+const registerForm = reactive({
+  studentNo: '',
+  name: '',
+  classId: null,
+  password: '',
+  confirmPassword: ''
+})
+const registerRules = {
+  studentNo: [{ required: true, message: '请输入学号', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  classId: [{ required: true, message: '请选择班级', trigger: 'change' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '密码至少6位', trigger: 'blur' }],
+  confirmPassword: [{
+    validator: (_, value, callback) => {
+      if (!value) {
+        callback(new Error('请确认密码'))
+        return
+      }
+      if (value !== registerForm.password) {
+        callback(new Error('两次密码输入不一致'))
+        return
+      }
+      callback()
+    },
+    trigger: 'blur'
+  }]
+}
+
+const fetchClasses = async () => {
+  try {
+    classOptions.value = await request.get('/auth/classes')
+  } catch {
+    classOptions.value = []
+  }
 }
 
 const handleLogin = async () => {
   if (!loginRef.value) return
   await loginRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        // 请求后端的 AuthController
-        const res = await request.post('/auth/login', {
-          username: loginForm.username,
-          password: loginForm.password
-        })
-        
-        localStorage.setItem('token', res.token)
-        localStorage.setItem('role', res.role)
-        localStorage.setItem('username', res.displayName)
-        
-        ElMessage.success('登录成功！')
-        
-        // 根据实际返回的角色和选择进行跳转拦截
-        if (res.role === 'STUDENT') {
-          router.push('/student/exam')
-        } else {
-          router.push('/exam') // 教师端管理页面
-        }
-      } catch (error) {
-        // 错误提示由 request.js 拦截器统一处理，这里可不做额外操作
-        console.error(error)
-      } finally {
-        loading.value = false
+    if (!valid) return
+    loadingLogin.value = true
+    try {
+      const res = await request.post('/auth/login', {
+        username: loginForm.username.trim(),
+        password: loginForm.password
+      })
+      localStorage.setItem('token', res.token)
+      localStorage.setItem('role', res.role)
+      localStorage.setItem('username', res.username || '')
+
+      ElMessage.success('登录成功')
+      if (res.role === 'STUDENT') {
+        router.replace('/student/exam')
+      } else {
+        router.replace('/exam')
       }
+    } finally {
+      loadingLogin.value = false
     }
   })
 }
+
+const handleRegister = async () => {
+  if (!registerRef.value) return
+  await registerRef.value.validate(async (valid) => {
+    if (!valid) return
+    loadingRegister.value = true
+    try {
+      await request.post('/auth/register', {
+        studentNo: registerForm.studentNo.trim(),
+        name: registerForm.name.trim(),
+        classId: registerForm.classId,
+        password: registerForm.password
+      })
+      ElMessage.success('注册成功，请登录')
+      studentMode.value = 'LOGIN'
+      loginForm.username = registerForm.studentNo.trim()
+      loginForm.password = ''
+      registerForm.studentNo = ''
+      registerForm.name = ''
+      registerForm.classId = null
+      registerForm.password = ''
+      registerForm.confirmPassword = ''
+    } finally {
+      loadingRegister.value = false
+    }
+  })
+}
+
+watch(identity, (val) => {
+  if (val !== 'STUDENT') {
+    studentMode.value = 'LOGIN'
+  }
+})
+
+watch([identity, studentMode], ([id, mode]) => {
+  if (id === 'STUDENT' && mode === 'REGISTER' && classOptions.value.length === 0) {
+    fetchClasses()
+  }
+})
+
+onMounted(() => {
+  if (identity.value === 'STUDENT' && studentMode.value === 'REGISTER') {
+    fetchClasses()
+  }
+})
 </script>
 
 <style scoped>
-.login-wrapper {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  overflow: hidden;
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  background: radial-gradient(circle at 0% 0%, #1d3566 0, #0f2144 40%, #09162f 100%);
 }
-
-.login-container {
-  display: flex;
-  width: 900px;
-  height: 500px;
-  background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.login-left {
-  flex: 1;
-  background: linear-gradient(135deg, #4D58B5 0%, #303f9f 100%);
-  color: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 左侧装饰小球 */
-.login-left::before {
-  content: '';
-  position: absolute;
-  top: -50px;
-  left: -50px;
-  width: 200px;
-  height: 200px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-}
-.login-left::after {
-  content: '';
-  position: absolute;
-  bottom: -80px;
-  right: -50px;
-  width: 250px;
-  height: 250px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 50%;
-}
-
-.left-content {
-  text-align: center;
-  z-index: 1;
-}
-
-.logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  margin-bottom: 20px;
-}
-
-.left-content h2 {
-  font-size: 28px;
-  margin: 0 0 10px;
-  letter-spacing: 2px;
-}
-.left-content p {
-  font-size: 14px;
-  color: #d0d4ff;
-  margin: 0;
-}
-
-.login-right {
-  flex: 1;
-  padding: 50px;
+.brand-panel {
+  color: #e8f0ff;
+  padding: 56px 56px 44px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
-
-.title {
-  font-size: 26px;
-  color: #333;
-  margin-bottom: 20px;
-  font-weight: 600;
+.brand-badge {
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  margin-bottom: 16px;
 }
+.brand-panel h1 { margin: 0; font-size: 42px; line-height: 1.2; }
+.brand-panel p { margin: 12px 0 0; font-size: 16px; color: #b9caef; }
+.brand-kpis { margin-top: 28px; display: grid; gap: 12px; }
+.kpi { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px 14px; }
+.kpi b { display: block; margin-bottom: 2px; }
+.kpi span { color: #c6d4f2; font-size: 13px; }
 
-.role-tabs :deep(.el-tabs__item) {
-  font-size: 16px;
-  font-weight: 500;
+.form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
-
-.submit-btn {
-  width: 100%;
-  border-radius: 8px;
-  font-size: 16px;
-  letter-spacing: 4px;
-  margin-top: 10px;
-  height: 44px;
-  background: linear-gradient(135deg, #4D58B5 0%, #303f9f 100%);
+.auth-card {
+  width: min(460px, 100%);
+  border-radius: 16px;
   border: none;
-  transition: all 0.3s;
 }
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.title { font-size: 20px; font-weight: 700; }
+.submit-btn { width: 100%; }
 
-.submit-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(77, 88, 181, 0.4);
+@media (max-width: 980px) {
+  .auth-page { grid-template-columns: 1fr; }
+  .brand-panel { padding: 24px 24px 8px; }
+  .brand-panel h1 { font-size: 28px; }
 }
 </style>

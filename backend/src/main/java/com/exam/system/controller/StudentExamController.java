@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -45,6 +46,7 @@ public class StudentExamController {
     @GetMapping("/my-records")
     public Map<String, Object> getMyRecords(@RequestParam(defaultValue = "1") Integer page,
                                             @RequestParam(defaultValue = "10") Integer size,
+                                            @RequestParam(required = false) Long courseId,
                                             @RequestParam(required = false) String status,
                                             @RequestParam(required = false) String keyword,
                                             HttpServletRequest request) {
@@ -63,6 +65,9 @@ public class StudentExamController {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ExamRecord r : records) {
             Exam exam = examMap.get(r.getExamId());
+            if (courseId != null && (exam == null || !courseId.equals(exam.getCourseId()))) {
+                continue;
+            }
             Map<String, Object> map = new HashMap<>();
             map.put("id", r.getId());
             map.put("examTitle", exam != null ? exam.getTitle() : "未知考试");
@@ -131,6 +136,8 @@ public class StudentExamController {
         }
 
         Exam exam = examMapper.selectById(record.getExamId());
+        boolean canViewReference = "GRADED".equalsIgnoreCase(String.valueOf(record.getStatus()))
+                || (exam != null && exam.getEndTime() != null && LocalDateTime.now().isAfter(exam.getEndTime()));
         List<ExamRecordAnswer> answers = examRecordAnswerMapper.selectList(
                 new LambdaQueryWrapper<ExamRecordAnswer>().eq(ExamRecordAnswer::getRecordId, recordId)
         );
@@ -148,8 +155,8 @@ public class StudentExamController {
             qMap.put("type", q.getType());
             qMap.put("options", q.getOptions());
             qMap.put("studentAnswer", ans.getUserAnswer());
-            qMap.put("correctAnswer", q.getAnswer());
-            qMap.put("analysis", q.getAnalysis());
+            qMap.put("correctAnswer", canViewReference ? q.getAnswer() : null);
+            qMap.put("analysis", canViewReference ? q.getAnalysis() : "考试未结束或未完成阅卷，暂不显示解析");
             qMap.put("score", ans.getScore());
             qMap.put("isCorrect", ans.getIsCorrect());
             detailList.add(qMap);
@@ -158,6 +165,7 @@ public class StudentExamController {
         Map<String, Object> res = new HashMap<>();
         res.put("examTitle", exam != null ? exam.getTitle() : "未知考试");
         res.put("totalScore", record.getTotalScore());
+        res.put("canViewReference", canViewReference);
         res.put("details", detailList);
         return res;
     }
@@ -177,9 +185,10 @@ public class StudentExamController {
     }
 
     @GetMapping("/list")
-    public List<Exam> listAvailableExams(HttpServletRequest request) {
+    public List<Exam> listAvailableExams(@RequestParam(required = false) Long courseId,
+                                         HttpServletRequest request) {
         Long studentId = CurrentUser.userId(request);
-        return teacherExamService.listStudentAvailableExams(studentId);
+        return teacherExamService.listStudentAvailableExams(studentId, courseId);
     }
 
     private Map<String, Object> paginate(List<Map<String, Object>> rows, Integer page, Integer size) {

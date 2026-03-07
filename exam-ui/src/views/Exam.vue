@@ -7,6 +7,9 @@
         </el-button>
       </div>
       <div class="right-actions">
+        <el-select v-model="courseFilter" clearable placeholder="按课程筛选" style="width: 170px; margin-right: 8px;" @change="fetchExams">
+          <el-option v-for="c in courseList" :key="c.id" :label="c.title" :value="c.id" />
+        </el-select>
         <el-input v-model="keyword" placeholder="搜索考试名称" prefix-icon="Search" class="search-input" @keyup.enter="fetchExams" />
       </div>
     </div>
@@ -45,6 +48,12 @@
       <el-form :model="form" label-width="100px" label-position="top">
         <el-form-item label="考试名称">
           <el-input v-model="form.title" placeholder="例如：2026级软件工程期中统一考试" />
+        </el-form-item>
+
+        <el-form-item label="所属课程">
+          <el-select v-model="form.courseId" clearable placeholder="可选，按课程归档考试" style="width: 100%">
+            <el-option v-for="c in courseList" :key="c.id" :label="c.title" :value="c.id" />
+          </el-select>
         </el-form-item>
         
         <el-form-item label="发放班级">
@@ -112,24 +121,28 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Monitor, Search, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
 import LoadErrorBar from '../components/LoadErrorBar.vue'
 
 const router = useRouter()
+const route = useRoute()
 const tableData = ref([])
 const paperList = ref([])
 const classList = ref([]) 
+const courseList = ref([])
 const loading = ref(false)
 const loadError = ref('')
 const btnLoading = ref(false)
 const dialogVisible = ref(false)
 const keyword = ref('')
+const courseFilter = ref(route.query.courseId ? Number(route.query.courseId) : null)
 
 const form = ref({
   title: '',
+  courseId: courseFilter.value || null,
   classId: null,
   paperMode: 'standard', // 默认标准模式
   paperIds: [], 
@@ -161,7 +174,9 @@ const fetchExams = async () => {
   loading.value = true
   loadError.value = ''
   try {
-    const list = await request.get('/teacher/exams')
+    const list = await request.get('/teacher/exams', {
+      params: { courseId: courseFilter.value || undefined }
+    })
     const kw = keyword.value.trim().toLowerCase()
     tableData.value = !kw ? list : list.filter(x => String(x.title || '').toLowerCase().includes(kw))
   } catch (e) {
@@ -175,6 +190,8 @@ const openCreateDialog = async () => {
   dialogVisible.value = true
   paperList.value = await request.get('/teacher/papers')
   classList.value = await request.get('/teacher/classes') 
+  courseList.value = await request.get('/teacher/courses')
+  form.value.courseId = courseFilter.value || form.value.courseId || null
 }
 
 const handleCreateExam = async () => {
@@ -206,6 +223,7 @@ const handleCreateExam = async () => {
     // 统一下发考试
     await request.post('/teacher/exams', {
       title: form.value.title,
+      courseId: form.value.courseId || null,
       classId: form.value.classId,
       paperIds: finalPaperIds, // 支持数组
       startTime: form.value.timeRange[0],
@@ -235,7 +253,10 @@ const revokeExam = async (row) => {
   fetchExams()
 }
 
-onMounted(fetchExams)
+onMounted(async () => {
+  courseList.value = await request.get('/teacher/courses')
+  await fetchExams()
+})
 </script>
 
 <style scoped>

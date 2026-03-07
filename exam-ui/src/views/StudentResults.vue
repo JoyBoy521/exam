@@ -61,12 +61,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import request from '../utils/request'
 import LoadErrorBar from '../components/LoadErrorBar.vue'
 import { examRecordStatusMeta, formatDateTime } from '../utils/format'
 
 const router = useRouter()
+const route = useRoute()
 const recordList = ref([])
 const loading = ref(false)
 const loadError = ref('')
@@ -81,6 +82,7 @@ const fetchRecords = async () => {
       params: {
         page: pager.value.page,
         size: pager.value.size,
+        courseId: route.query.courseId ? Number(route.query.courseId) : undefined,
         status: filters.value.status || undefined,
         keyword: filters.value.keyword?.trim() || undefined
       }

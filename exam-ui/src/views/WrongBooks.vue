@@ -4,25 +4,25 @@
       <el-row :gutter="20">
         <el-col :span="6">
           <div class="stat-card orange">
-            <div class="num">{{ bookList.length }}</div>
+            <div class="num">{{ summary.totalCount }}</div>
             <div class="label">待消化题目</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="stat-card blue">
-            <div class="num">{{ masteredCount }}</div>
+            <div class="num">{{ summary.masteredCount }}</div>
             <div class="label">已掌握</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="stat-card red">
-            <div class="num">{{ needReviewCount }}</div>
+            <div class="num">{{ summary.needReviewCount }}</div>
             <div class="label">需巩固</div>
           </div>
         </el-col>
         <el-col :span="6">
           <div class="stat-card green">
-            <div class="num">{{ avgAccuracy }}%</div>
+            <div class="num">{{ Number(summary.avgAccuracy || 0).toFixed(2) }}%</div>
             <div class="label">平均正确率</div>
           </div>
         </el-col>
@@ -103,7 +103,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { Delete } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import request from '../utils/request'
@@ -111,10 +112,17 @@ import LoadErrorBar from '../components/LoadErrorBar.vue'
 import { masteryMeta } from '../utils/format'
 
 const bookList = ref([])
+const route = useRoute()
 const loading = ref(false)
 const loadError = ref('')
 const pager = ref({ page: 1, size: 10, total: 0 })
 const filters = ref({ masteryLevel: '', keyword: '' })
+const summary = ref({
+  totalCount: 0,
+  masteredCount: 0,
+  needReviewCount: 0,
+  avgAccuracy: 0
+})
 
 const formatType = (t) => ({ 'SINGLE_CHOICE': '单选题', 'MULTIPLE_CHOICE': '多选题', 'TRUE_FALSE': '判断题', 'SHORT_ANSWER': '简答题' }[t] || t)
 const masteryText = (v) => masteryMeta(v).text
@@ -128,14 +136,6 @@ const hasChoice = (answer, letter) => {
     .includes(String(letter).trim().toUpperCase())
 }
 
-const masteredCount = computed(() => bookList.value.filter(x => x.masteryLevel === 'MASTERED').length)
-const needReviewCount = computed(() => bookList.value.filter(x => x.masteryLevel === 'NEEDS_REVIEW').length)
-const avgAccuracy = computed(() => {
-  if (bookList.value.length === 0) return '0.00'
-  const sum = bookList.value.reduce((acc, x) => acc + Number(x.accuracy || 0), 0)
-  return (sum / bookList.value.length).toFixed(2)
-})
-
 const fetchList = async () => {
   loading.value = true
   loadError.value = ''
@@ -144,12 +144,19 @@ const fetchList = async () => {
       params: {
         page: pager.value.page,
         size: pager.value.size,
+        courseId: route.query.courseId ? Number(route.query.courseId) : undefined,
         masteryLevel: filters.value.masteryLevel || undefined,
         keyword: filters.value.keyword?.trim() || undefined
       }
     })
     bookList.value = res.list || []
     pager.value.total = Number(res.total || 0)
+    summary.value = res.summary || {
+      totalCount: 0,
+      masteredCount: 0,
+      needReviewCount: 0,
+      avgAccuracy: 0
+    }
   } catch (e) {
     loadError.value = e?.response?.data?.error || '加载错题本失败'
   } finally {

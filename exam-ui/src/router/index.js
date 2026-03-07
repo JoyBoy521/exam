@@ -19,7 +19,9 @@ const routes = [
       { path: 'monitor', component: () => import('../views/Monitor.vue') },
       { path: 'marking/:examId', component: () => import('../views/Marking.vue') },
       { path: 'class', component: () => import('../views/ClassManage.vue') },
+      { path: 'courses', component: () => import('../views/TeacherCourses.vue') },
       { path: 'stat', component: () => import('../views/Stat.vue') },
+      { path: 'profile', component: () => import('../views/TeacherProfile.vue') },
       { path: 'manage', component: () => import('../views/Manage.vue') }
     ]
   },
@@ -27,13 +29,17 @@ const routes = [
   {
     path: '/student',
     component: StudentLayout,
-    redirect: '/student/exam',
+    redirect: '/student/courses',
     children: [
+      { path: 'courses', component: () => import('../views/StudentCourses.vue') },
+      { path: 'course/:id', component: () => import('../views/StudentCourseDetail.vue') },
       { path: 'exam', component: () => import('../views/StudentExam.vue') },
       { path: 'results', component: () => import('../views/StudentResults.vue') },
       { path: 'result-detail/:recordId', component: () => import('../views/StudentResultDetail.vue') },
       { path: 'wrong-books', component: () => import('../views/WrongBooks.vue') },
       { path: 'wrong-practice', component: () => import('../views/WrongPractice.vue') },
+      { path: 'makeup', component: () => import('../views/StudentMakeup.vue') },
+      { path: 'profile', component: () => import('../views/StudentProfile.vue') },
       { path: 'notices', component: () => import('../views/StudentNotices.vue') }
     ]
   },
@@ -57,7 +63,7 @@ router.beforeEach((to) => {
     if (to.path.startsWith('/student') || to.path.startsWith('/exam-room')) {
       return true
     }
-    return '/student/exam'
+    return '/student/courses'
   }
 
   if (to.path.startsWith('/student') || to.path.startsWith('/exam-room')) {
