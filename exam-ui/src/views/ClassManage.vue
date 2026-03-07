@@ -184,6 +184,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, Collection, MoreFilled, User, Upload, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import { downloadBlob, exportCsvRows } from '../utils/export'
 
 const classList = ref([])
 const activeClassId = ref(null)
@@ -372,16 +373,14 @@ const openBatchDialog = () => {
 }
 
 const downloadBatchTemplate = () => {
-  const content = '学号,姓名,联系电话\n20260010,赵六,13800000000\n20260011,孙七,\n'
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'student_import_template.csv'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url)
+  exportCsvRows(
+    ['学号', '姓名', '联系电话'],
+    [
+      ['20260010', '赵六', '13800000000'],
+      ['20260011', '孙七', '']
+    ],
+    'student_import_template.csv'
+  )
 }
 
 const removeStudent = (id) => {
@@ -438,14 +437,7 @@ const exportStudents = async () => {
   const blob = await request.get(`/teacher/classes/${activeClassId.value}/students/export`, {
     responseType: 'blob'
   })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${activeClass.value?.name || 'class'}_students.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url)
+  downloadBlob(blob, `${activeClass.value?.name || 'class'}_students.csv`)
 }
 </script>
 

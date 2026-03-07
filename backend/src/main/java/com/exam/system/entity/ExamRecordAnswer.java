@@ -15,4 +15,5 @@ public class ExamRecordAnswer {
     private String userAnswer;
     private Integer isCorrect; // 1对, 0错
     private Double score;
+    private String teacherComment;
 }

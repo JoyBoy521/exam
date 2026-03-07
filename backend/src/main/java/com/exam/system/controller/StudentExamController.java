@@ -43,25 +43,38 @@ public class StudentExamController {
     }
 
     @GetMapping("/my-records")
-    public List<Map<String, Object>> getMyRecords(HttpServletRequest request) {
+    public Map<String, Object> getMyRecords(@RequestParam(defaultValue = "1") Integer page,
+                                            @RequestParam(defaultValue = "10") Integer size,
+                                            @RequestParam(required = false) String status,
+                                            @RequestParam(required = false) String keyword,
+                                            HttpServletRequest request) {
         Long studentId = CurrentUser.userId(request);
 
         LambdaQueryWrapper<ExamRecord> query = new LambdaQueryWrapper<>();
         query.eq(ExamRecord::getUserId, studentId).orderByDesc(ExamRecord::getSubmitTime);
         List<ExamRecord> records = examRecordMapper.selectList(query);
+        if (records.isEmpty()) {
+            return paginate(List.of(), page, size);
+        }
+        Map<Long, Exam> examMap = examMapper.selectBatchIds(
+                records.stream().map(ExamRecord::getExamId).collect(Collectors.toSet())
+        ).stream().collect(Collectors.toMap(Exam::getId, x -> x, (a, b) -> a));
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
         for (ExamRecord r : records) {
-            Exam exam = examMapper.selectById(r.getExamId());
+            Exam exam = examMap.get(r.getExamId());
             Map<String, Object> map = new HashMap<>();
             map.put("id", r.getId());
             map.put("examTitle", exam != null ? exam.getTitle() : "未知考试");
             map.put("totalScore", r.getTotalScore());
             map.put("status", r.getStatus());
             map.put("submitTime", r.getSubmitTime());
-            result.add(map);
+            if (!hitRecordFilter(map, status, keyword)) {
+                continue;
+            }
+            rows.add(map);
         }
-        return result;
+        return paginate(rows, page, size);
     }
 
     @GetMapping("/wrong-questions")
@@ -83,13 +96,17 @@ public class StudentExamController {
                         .in(ExamRecordAnswer::getRecordId, myRecordIds)
                         .eq(ExamRecordAnswer::getIsCorrect, 0)
         );
+        if (wrongAnswers.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Question> questionMap = questionMapper.selectBatchIds(
+                wrongAnswers.stream().map(ExamRecordAnswer::getQuestionId).collect(Collectors.toSet())
+        ).stream().collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (ExamRecordAnswer ans : wrongAnswers) {
-            Question q = questionMapper.selectById(ans.getQuestionId());
-            if (q == null) {
-                continue;
-            }
+            Question q = questionMap.get(ans.getQuestionId());
+            if (q == null) continue;
             Map<String, Object> map = new HashMap<>();
             map.put("answerId", ans.getId());
             map.put("questionId", q.getId());
@@ -117,13 +134,14 @@ public class StudentExamController {
         List<ExamRecordAnswer> answers = examRecordAnswerMapper.selectList(
                 new LambdaQueryWrapper<ExamRecordAnswer>().eq(ExamRecordAnswer::getRecordId, recordId)
         );
+        Map<Long, Question> questionMap = questionMapper.selectBatchIds(
+                answers.stream().map(ExamRecordAnswer::getQuestionId).collect(Collectors.toSet())
+        ).stream().collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
 
         List<Map<String, Object>> detailList = new ArrayList<>();
         for (ExamRecordAnswer ans : answers) {
-            Question q = questionMapper.selectById(ans.getQuestionId());
-            if (q == null) {
-                continue;
-            }
+            Question q = questionMap.get(ans.getQuestionId());
+            if (q == null) continue;
             Map<String, Object> qMap = new HashMap<>();
             qMap.put("questionId", q.getId());
             qMap.put("stem", q.getStem());
@@ -162,5 +180,32 @@ public class StudentExamController {
     public List<Exam> listAvailableExams(HttpServletRequest request) {
         Long studentId = CurrentUser.userId(request);
         return teacherExamService.listStudentAvailableExams(studentId);
+    }
+
+    private Map<String, Object> paginate(List<Map<String, Object>> rows, Integer page, Integer size) {
+        int safePage = Math.max(1, page == null ? 1 : page);
+        int safeSize = Math.max(1, Math.min(size == null ? 10 : size, 200));
+        int total = rows.size();
+        int fromIndex = Math.min((safePage - 1) * safeSize, total);
+        int toIndex = Math.min(fromIndex + safeSize, total);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", rows.subList(fromIndex, toIndex));
+        result.put("total", total);
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        return result;
+    }
+
+    private boolean hitRecordFilter(Map<String, Object> row, String status, String keyword) {
+        if (status != null && !status.isBlank()) {
+            if (!status.trim().equalsIgnoreCase(String.valueOf(row.getOrDefault("status", "")))) {
+                return false;
+            }
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim().toLowerCase();
+            return String.valueOf(row.getOrDefault("examTitle", "")).toLowerCase().contains(kw);
+        }
+        return true;
     }
 }

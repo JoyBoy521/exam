@@ -76,7 +76,22 @@ public class TeacherExamService {
     }
 
     public List<Exam> listExams() {
-        List<Exam> exams = examMapper.selectList(new LambdaQueryWrapper<Exam>().orderByDesc(Exam::getCreateTime));
+        return listExams(null, null, null);
+    }
+
+    public List<Exam> listExams(String keyword, String status, Long classId) {
+        LambdaQueryWrapper<Exam> query = new LambdaQueryWrapper<>();
+        if (keyword != null && !keyword.isBlank()) {
+            query.like(Exam::getTitle, keyword.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(Exam::getStatus, status.trim().toUpperCase());
+        }
+        if (classId != null) {
+            query.eq(Exam::getClassId, classId);
+        }
+        query.orderByDesc(Exam::getCreateTime);
+        List<Exam> exams = examMapper.selectList(query);
         exams.forEach(this::syncExamStatusIfNeeded);
         return exams;
     }

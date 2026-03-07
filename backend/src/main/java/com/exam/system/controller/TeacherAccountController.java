@@ -28,10 +28,19 @@ public class TeacherAccountController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> list(HttpServletRequest request) {
+    public Map<String, Object> list(@RequestParam(defaultValue = "1") Integer page,
+                                    @RequestParam(defaultValue = "10") Integer size,
+                                    @RequestParam(required = false) String keyword,
+                                    @RequestParam(required = false) String role,
+                                    @RequestParam(required = false) Integer status,
+                                    HttpServletRequest request) {
         ensureAdmin(request);
         List<SysUser> users = sysUserMapper.selectList(new LambdaQueryWrapper<SysUser>().orderByDesc(SysUser::getId));
-        return users.stream().map(this::toSafeRow).toList();
+        List<Map<String, Object>> rows = users.stream()
+                .map(this::toSafeRow)
+                .filter(x -> hitFilter(x, keyword, role, status))
+                .toList();
+        return paginate(rows, page, size);
     }
 
     @PostMapping
@@ -84,6 +93,9 @@ public class TeacherAccountController {
         int status = Integer.parseInt(String.valueOf(payload.getOrDefault("status", "1")));
         if (status != 0 && status != 1) {
             throw new IllegalArgumentException("状态仅支持 0/1");
+        }
+        if (CurrentUser.userId(request).equals(id) && status == 0) {
+            throw new IllegalArgumentException("不能停用当前登录账号");
         }
         user.setStatus(status);
         user.setUpdateTime(LocalDateTime.now());
@@ -138,5 +150,39 @@ public class TeacherAccountController {
         row.put("createTime", user.getCreateTime());
         row.put("updateTime", user.getUpdateTime());
         return row;
+    }
+
+    private Map<String, Object> paginate(List<Map<String, Object>> rows, Integer page, Integer size) {
+        int safePage = Math.max(1, page == null ? 1 : page);
+        int safeSize = Math.max(1, Math.min(size == null ? 10 : size, 200));
+        int total = rows.size();
+        int fromIndex = Math.min((safePage - 1) * safeSize, total);
+        int toIndex = Math.min(fromIndex + safeSize, total);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", rows.subList(fromIndex, toIndex));
+        result.put("total", total);
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        return result;
+    }
+
+    private boolean hitFilter(Map<String, Object> row, String keyword, String role, Integer status) {
+        if (role != null && !role.isBlank()) {
+            if (!role.trim().equalsIgnoreCase(String.valueOf(row.getOrDefault("role", "")))) {
+                return false;
+            }
+        }
+        if (status != null) {
+            int rowStatus = Integer.parseInt(String.valueOf(row.getOrDefault("status", "0")));
+            if (rowStatus != status) {
+                return false;
+            }
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim().toLowerCase();
+            return String.valueOf(row.getOrDefault("username", "")).toLowerCase().contains(kw)
+                    || String.valueOf(row.getOrDefault("displayName", "")).toLowerCase().contains(kw);
+        }
+        return true;
     }
 }

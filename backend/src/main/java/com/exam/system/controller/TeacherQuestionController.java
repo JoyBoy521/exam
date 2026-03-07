@@ -22,13 +22,17 @@ public class TeacherQuestionController {
     // 1. 获取题库列表 (支持按题型和关键词搜索)
     @GetMapping
     public List<Question> getQuestions(@RequestParam(required = false) String type,
-                                       @RequestParam(required = false) String keyword) {
+                                       @RequestParam(required = false) String keyword,
+                                       @RequestParam(required = false) Integer difficulty) {
         LambdaQueryWrapper<Question> query = new LambdaQueryWrapper<>();
         if (type != null && !type.isEmpty()) {
             query.eq(Question::getType, type);
         }
         if (keyword != null && !keyword.isEmpty()) {
             query.like(Question::getStem, keyword);
+        }
+        if (difficulty != null) {
+            query.eq(Question::getDifficulty, difficulty);
         }
         query.orderByDesc(Question::getId);
         return questionMapper.selectList(query);

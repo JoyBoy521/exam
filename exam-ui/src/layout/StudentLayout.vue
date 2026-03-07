@@ -51,7 +51,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Monitor, Document, Edit, Bell, ArrowDown } from '@element-plus/icons-vue'
+import { Monitor, Document, Edit, Reading, Bell, ArrowDown } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -65,6 +65,7 @@ const menuItems = [
   { name: '考试中心', path: '/student/exam', icon: Monitor },
   { name: '我的成绩', path: '/student/results', icon: Document },
   { name: '错题本', path: '/student/wrong-books', icon: Edit },
+  { name: '错题重练', path: '/student/wrong-practice', icon: Reading },
   { name: '系统通知', path: '/student/notices', icon: Bell },
 ]
 

@@ -7,10 +7,11 @@
         </el-button>
       </div>
       <div class="right-actions">
-        <el-input placeholder="搜索考试名称" prefix-icon="Search" class="search-input" />
+        <el-input v-model="keyword" placeholder="搜索考试名称" prefix-icon="Search" class="search-input" @keyup.enter="fetchExams" />
       </div>
     </div>
 
+    <LoadErrorBar :message="loadError" @retry="fetchExams" />
     <el-table :data="tableData" class="custom-table" v-loading="loading">
       <el-table-column label="状态" width="100">
         <template #default="scope">
@@ -115,14 +116,17 @@ import { useRouter } from 'vue-router'
 import { Monitor, Search, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import LoadErrorBar from '../components/LoadErrorBar.vue'
 
 const router = useRouter()
 const tableData = ref([])
 const paperList = ref([])
 const classList = ref([]) 
 const loading = ref(false)
+const loadError = ref('')
 const btnLoading = ref(false)
 const dialogVisible = ref(false)
+const keyword = ref('')
 
 const form = ref({
   title: '',
@@ -155,8 +159,13 @@ const getStatusTag = (s) => ({ 'NOT_STARTED': 'info', 'ONGOING': 'success', 'FIN
 
 const fetchExams = async () => {
   loading.value = true
+  loadError.value = ''
   try {
-    tableData.value = await request.get('/teacher/exams')
+    const list = await request.get('/teacher/exams')
+    const kw = keyword.value.trim().toLowerCase()
+    tableData.value = !kw ? list : list.filter(x => String(x.title || '').toLowerCase().includes(kw))
+  } catch (e) {
+    loadError.value = e?.response?.data?.error || '加载考试列表失败'
   } finally {
     loading.value = false
   }

@@ -45,6 +45,7 @@
       </div>
     </div>
 
+    <LoadErrorBar :message="loadError" @retry="fetchQuestions" />
     <div class="list-summary">全部题目 (共 {{ tableData.length }} 题)</div>
 
     <el-table :data="tableData" class="custom-table" :header-cell-style="{ background: '#fff', color: '#909399', fontWeight: 'normal', borderBottom: '1px solid #ebeef5' }" v-loading="loading">
@@ -108,6 +109,7 @@ import { useRouter } from 'vue-router'
 import { Plus, Setting, Menu, DocumentCopy, Upload, Search, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../utils/request'
+import LoadErrorBar from '../components/LoadErrorBar.vue'
 
 const router = useRouter()
 // 动态获取登录时的用户名，如果没拿到就默认叫“管理员”
@@ -118,6 +120,7 @@ const filters = ref({ course: '', type: '', knowledge: '', keyword: '' })
 const tableData = ref([])
 const existingKnowledges = ref([]) 
 const loading = ref(false)
+const loadError = ref('')
 
 const getLetter = (index) => String.fromCharCode(65 + index)
 
@@ -128,6 +131,7 @@ const formatType = (type) => {
 
 const fetchQuestions = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await request.get('/teacher/questions', {
       params: { type: filters.value.type || undefined, keyword: filters.value.keyword || undefined }
@@ -141,7 +145,7 @@ const fetchQuestions = async () => {
     })
     existingKnowledges.value = Array.from(kSet)
   } catch (error) {
-    console.error('拉取失败', error)
+    loadError.value = error?.response?.data?.error || '加载题库失败'
   } finally {
     loading.value = false
   }

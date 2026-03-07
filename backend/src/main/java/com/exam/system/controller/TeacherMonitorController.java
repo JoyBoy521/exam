@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,18 +48,26 @@ public class TeacherMonitorController {
     }
 
     @GetMapping("/dashboard")
-    public Map<String, Object> dashboard(@RequestParam Long examId) {
+    public Map<String, Object> dashboard(@RequestParam Long examId,
+                                         @RequestParam(required = false) String riskLevel,
+                                         @RequestParam(required = false) Long classId) {
         Exam exam = examMapper.selectById(examId);
         if (exam == null) {
             throw new IllegalArgumentException("考试不存在");
         }
+        String normalizedRiskLevel = normalizeRiskLevel(riskLevel);
+        Long effectiveClassId = classId == null ? exam.getClassId() : classId;
 
         int activeWindowSeconds = 90;
         LocalDateTime onlineAfter = LocalDateTime.now().minusSeconds(activeWindowSeconds);
 
         long totalStudents = studentMapper.selectCount(
-                new LambdaQueryWrapper<Student>().eq(Student::getClassId, exam.getClassId())
+                new LambdaQueryWrapper<Student>().eq(Student::getClassId, effectiveClassId)
         );
+        Map<Long, Student> classStudentMap = studentMapper.selectList(
+                        new LambdaQueryWrapper<Student>().eq(Student::getClassId, effectiveClassId)
+                ).stream()
+                .collect(Collectors.toMap(Student::getId, s -> s, (a, b) -> a));
 
         List<ExamHeartbeat> onlineHeartbeats = examHeartbeatMapper.selectList(
                 new LambdaQueryWrapper<ExamHeartbeat>()
@@ -69,18 +77,16 @@ public class TeacherMonitorController {
         );
         Map<Long, ExamHeartbeat> latestByStudent = new HashMap<>();
         for (ExamHeartbeat hb : onlineHeartbeats) {
+            if (!classStudentMap.containsKey(hb.getStudentId())) {
+                continue;
+            }
             latestByStudent.putIfAbsent(hb.getStudentId(), hb);
         }
-        List<Long> onlineStudentIds = new ArrayList<>(latestByStudent.keySet());
-
-        Map<Long, Student> onlineStudentMap = onlineStudentIds.isEmpty()
-                ? Map.of()
-                : studentMapper.selectBatchIds(onlineStudentIds).stream().collect(Collectors.toMap(Student::getId, s -> s));
 
         List<Map<String, Object>> onlineStudents = latestByStudent.values().stream()
-                .sorted((a, b) -> b.getUpdatedAt().compareTo(a.getUpdatedAt()))
+                .sorted(Comparator.comparing(ExamHeartbeat::getUpdatedAt).reversed())
                 .map(hb -> {
-                    Student student = onlineStudentMap.get(hb.getStudentId());
+                    Student student = classStudentMap.get(hb.getStudentId());
                     Map<String, Object> row = new HashMap<>();
                     row.put("studentId", hb.getStudentId());
                     row.put("studentNo", student != null ? student.getStudentNo() : String.valueOf(hb.getStudentId()));
@@ -99,42 +105,58 @@ public class TeacherMonitorController {
                         .orderByDesc(ExamCheatEvent::getHappenedAt)
                         .last("limit 30")
         );
-        Set<Long> eventStudentIds = recentEventEntities.stream().map(ExamCheatEvent::getStudentId).collect(Collectors.toSet());
-        Map<Long, Student> eventStudentMap = eventStudentIds.isEmpty()
-                ? Map.of()
-                : studentMapper.selectBatchIds(eventStudentIds).stream().collect(Collectors.toMap(Student::getId, s -> s));
+        List<Map<String, Object>> riskTopAll = buildRiskTop(examId, effectiveClassId);
+        Map<Long, String> riskLevelByStudent = riskTopAll.stream().collect(Collectors.toMap(
+                row -> ((Number) row.get("studentId")).longValue(),
+                row -> String.valueOf(row.get("riskLevel")),
+                (a, b) -> a
+        ));
+        List<Map<String, Object>> riskTop = riskTopAll.stream()
+                .filter(row -> normalizedRiskLevel == null || normalizedRiskLevel.equals(String.valueOf(row.get("riskLevel"))))
+                .limit(10)
+                .toList();
 
         List<Map<String, Object>> recentEvents = new ArrayList<>();
         for (ExamCheatEvent event : recentEventEntities) {
-            Student student = eventStudentMap.get(event.getStudentId());
+            Student student = classStudentMap.get(event.getStudentId());
+            if (student == null) {
+                continue;
+            }
+            String level = riskLevelByStudent.getOrDefault(event.getStudentId(), "LOW");
+            if (normalizedRiskLevel != null && !normalizedRiskLevel.equals(level)) {
+                continue;
+            }
             Map<String, Object> row = new HashMap<>();
             row.put("id", event.getId());
             row.put("studentId", event.getStudentId());
-            row.put("studentNo", student != null ? student.getStudentNo() : String.valueOf(event.getStudentId()));
-            row.put("studentName", student != null ? student.getName() : ("学生" + event.getStudentId()));
+            row.put("studentNo", student.getStudentNo());
+            row.put("studentName", student.getName());
             row.put("type", event.getType());
             row.put("durationSeconds", event.getDurationSeconds());
             row.put("detail", event.getDetail());
             row.put("happenedAt", event.getHappenedAt());
+            row.put("riskLevel", level);
             recentEvents.add(row);
         }
-
-        List<Map<String, Object>> riskTop = buildRiskTop(examId);
+        List<Map<String, Object>> onlineTrend = buildOnlineTrend(examId, effectiveClassId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("examId", exam.getId());
         result.put("examTitle", exam.getTitle());
+        result.put("classId", effectiveClassId);
+        result.put("riskLevel", normalizedRiskLevel);
         result.put("activeWindowSeconds", activeWindowSeconds);
         result.put("onlineCount", onlineStudents.size());
         result.put("totalStudents", totalStudents);
         result.put("onlineRate", totalStudents == 0 ? 0 : Math.round(onlineStudents.size() * 10000.0 / totalStudents) / 100.0);
+        result.put("onlineTrend", onlineTrend);
         result.put("onlineStudents", onlineStudents);
         result.put("recentViolations", recentEvents);
         result.put("riskTopStudents", riskTop);
         return result;
     }
 
-    private List<Map<String, Object>> buildRiskTop(Long examId) {
+    private List<Map<String, Object>> buildRiskTop(Long examId, Long classId) {
         List<ExamCheatEvent> events = examCheatEventMapper.selectList(
                 new LambdaQueryWrapper<ExamCheatEvent>()
                         .eq(ExamCheatEvent::getExamId, examId)
@@ -154,11 +176,16 @@ public class TeacherMonitorController {
 
         Map<Long, List<ExamCheatEvent>> byStudent = events.stream().collect(Collectors.groupingBy(ExamCheatEvent::getStudentId));
         Map<Long, Student> studentMap = studentMapper.selectBatchIds(byStudent.keySet()).stream()
-                .collect(Collectors.toMap(Student::getId, s -> s));
+                .filter(s -> classId == null || classId.equals(s.getClassId()))
+                .collect(Collectors.toMap(Student::getId, s -> s, (a, b) -> a));
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map.Entry<Long, List<ExamCheatEvent>> entry : byStudent.entrySet()) {
             Long studentId = entry.getKey();
+            Student student = studentMap.get(studentId);
+            if (student == null) {
+                continue;
+            }
             List<ExamCheatEvent> studentEvents = entry.getValue();
 
             int totalRisk = 0;
@@ -171,11 +198,10 @@ public class TeacherMonitorController {
             String level = totalRisk >= rule.getHighRiskThreshold() ? "HIGH" :
                     (totalRisk >= rule.getMediumRiskThreshold() ? "MEDIUM" : "LOW");
 
-            Student student = studentMap.get(studentId);
             Map<String, Object> row = new HashMap<>();
             row.put("studentId", studentId);
-            row.put("studentNo", student != null ? student.getStudentNo() : String.valueOf(studentId));
-            row.put("studentName", student != null ? student.getName() : ("学生" + studentId));
+            row.put("studentNo", student.getStudentNo());
+            row.put("studentName", student.getName());
             row.put("eventCount", studentEvents.size());
             row.put("riskScore", totalRisk);
             row.put("riskLevel", level);
@@ -183,7 +209,72 @@ public class TeacherMonitorController {
         }
 
         result.sort((a, b) -> Integer.compare((Integer) b.get("riskScore"), (Integer) a.get("riskScore")));
-        return result.stream().limit(10).toList();
+        return result;
+    }
+
+    private List<Map<String, Object>> buildOnlineTrend(Long examId, Long classId) {
+        long totalStudents = studentMapper.selectCount(
+                new LambdaQueryWrapper<Student>().eq(Student::getClassId, classId)
+        );
+        if (totalStudents <= 0) {
+            return List.of(
+                    trendRow(5, 0, 0),
+                    trendRow(15, 0, 0),
+                    trendRow(30, 0, 0)
+            );
+        }
+        Set<Long> classStudentIds = studentMapper.selectList(
+                        new LambdaQueryWrapper<Student>()
+                                .select(Student::getId)
+                                .eq(Student::getClassId, classId)
+                ).stream()
+                .map(Student::getId)
+                .collect(Collectors.toSet());
+        if (classStudentIds.isEmpty()) {
+            return List.of(
+                    trendRow(5, 0, 0),
+                    trendRow(15, 0, 0),
+                    trendRow(30, 0, 0)
+            );
+        }
+        int[] windows = {5, 15, 30};
+        List<Map<String, Object>> trend = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (int minutes : windows) {
+            LocalDateTime after = now.minusMinutes(minutes);
+            List<ExamHeartbeat> beats = examHeartbeatMapper.selectList(
+                    new LambdaQueryWrapper<ExamHeartbeat>()
+                            .eq(ExamHeartbeat::getExamId, examId)
+                            .ge(ExamHeartbeat::getUpdatedAt, after)
+            );
+            long count = beats.stream()
+                    .map(ExamHeartbeat::getStudentId)
+                    .filter(classStudentIds::contains)
+                    .distinct()
+                    .count();
+            double rate = Math.round(count * 10000.0 / totalStudents) / 100.0;
+            trend.add(trendRow(minutes, count, rate));
+        }
+        return trend;
+    }
+
+    private Map<String, Object> trendRow(int minutes, long count, double rate) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("windowMinutes", minutes);
+        row.put("onlineCount", count);
+        row.put("onlineRate", rate);
+        return row;
+    }
+
+    private String normalizeRiskLevel(String riskLevel) {
+        if (riskLevel == null || riskLevel.isBlank()) {
+            return null;
+        }
+        String normalized = riskLevel.trim().toUpperCase();
+        if ("LOW".equals(normalized) || "MEDIUM".equals(normalized) || "HIGH".equals(normalized)) {
+            return normalized;
+        }
+        return null;
     }
 
     private int weightForType(AntiCheatRule rule, String type) {

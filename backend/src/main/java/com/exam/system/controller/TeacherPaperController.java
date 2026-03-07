@@ -31,8 +31,25 @@ public class TeacherPaperController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> getPapers() {
-        List<Paper> papers = paperMapper.selectList(new LambdaQueryWrapper<Paper>().orderByDesc(Paper::getId));
+    public List<Map<String, Object>> getPapers(@RequestParam(required = false) String keyword) {
+        LambdaQueryWrapper<Paper> query = new LambdaQueryWrapper<Paper>().orderByDesc(Paper::getId);
+        if (keyword != null && !keyword.isBlank()) {
+            query.like(Paper::getTitle, keyword.trim());
+        }
+        List<Paper> papers = paperMapper.selectList(query);
+        if (papers.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> paperIds = papers.stream().map(Paper::getId).collect(Collectors.toSet());
+        Map<Long, List<Long>> questionIdsByPaper = paperQuestionMapper.selectList(
+                        new LambdaQueryWrapper<PaperQuestion>()
+                                .in(PaperQuestion::getPaperId, paperIds)
+                                .orderByAsc(PaperQuestion::getSortOrder, PaperQuestion::getId)
+                ).stream()
+                .collect(Collectors.groupingBy(
+                        PaperQuestion::getPaperId,
+                        Collectors.mapping(PaperQuestion::getQuestionId, Collectors.toList())
+                ));
         List<Map<String, Object>> result = new ArrayList<>();
         for (Paper p : papers) {
             Map<String, Object> map = new HashMap<>();
@@ -40,16 +57,7 @@ public class TeacherPaperController {
             map.put("title", p.getTitle());
             map.put("createTime", p.getCreateTime());
             map.put("totalScore", p.getTotalScore());
-
-            List<Long> qIds = paperQuestionMapper.selectList(
-                            new LambdaQueryWrapper<PaperQuestion>()
-                                    .eq(PaperQuestion::getPaperId, p.getId())
-                                    .orderByAsc(PaperQuestion::getSortOrder, PaperQuestion::getId)
-                    ).stream()
-                    .map(PaperQuestion::getQuestionId)
-                    .collect(Collectors.toList());
-
-            map.put("questionIds", qIds);
+            map.put("questionIds", questionIdsByPaper.getOrDefault(p.getId(), List.of()));
             result.add(map);
         }
         return result;

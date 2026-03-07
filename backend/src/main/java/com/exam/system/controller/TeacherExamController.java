@@ -26,8 +26,10 @@ public class TeacherExamController {
     }
 
     @GetMapping("/teacher/exams")
-    public List<Exam> listTeacherExams() {
-        return service.listExams();
+    public List<Exam> listTeacherExams(@RequestParam(required = false) String keyword,
+                                       @RequestParam(required = false) String status,
+                                       @RequestParam(required = false) Long classId) {
+        return service.listExams(keyword, status, classId);
     }
 
     @PostMapping("/teacher/exams/{examId}/revoke")

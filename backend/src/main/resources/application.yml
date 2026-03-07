@@ -5,11 +5,11 @@ spring:
     name: exam-system-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/exam_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456 # 替换为你的 MySQL 密码
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/exam_system?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
 
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true # 开启驼峰命名自动映射 (如 create_time -> createTime)
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}

@@ -16,5 +16,9 @@ public class StudentWrongBook {
     private Long questionId;
     private String errorType;
     private String notes;
+    private Integer practiceCount;
+    private Integer correctCount;
+    private String masteryLevel;
+    private LocalDateTime lastPracticeTime;
     private LocalDateTime createTime;
 }

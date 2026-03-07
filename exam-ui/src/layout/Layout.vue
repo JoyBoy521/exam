@@ -21,27 +21,6 @@
           <el-icon><UserFilled /></el-icon>
           <template #title>班级管理</template>
         </el-menu-item>
-        <el-menu-item index="/chapter">
-          <el-icon><Reading /></el-icon>
-          <template #title>章节</template>
-        </el-menu-item>
-        <el-menu-item index="/data">
-          <el-icon><Folder /></el-icon>
-          <template #title>资料</template>
-        </el-menu-item>
-        <el-menu-item index="/notice">
-          <el-icon><Bell /></el-icon>
-          <template #title>通知</template>
-        </el-menu-item>
-        <el-menu-item index="/discuss">
-          <el-icon><ChatDotRound /></el-icon>
-          <template #title>讨论</template>
-        </el-menu-item>
-        <el-menu-item index="/homework">
-          <el-icon><Edit /></el-icon>
-          <template #title>作业</template>
-        </el-menu-item>
-
         <el-menu-item index="/exam">
           <el-icon><Monitor /></el-icon>
           <template #title>考试</template>
@@ -107,7 +86,6 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router' // 引入 useRouter 用于跳转
 import { 
-  Reading, Folder, Bell, ChatDotRound, Edit, 
   Monitor, Files, Document, DataLine, Setting, UserFilled, ArrowDown
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
@@ -145,11 +123,6 @@ const handleLogout = () => {
 
 const currentRouteName = computed(() => {
   const map = {
-    '/chapter': '章节管理',
-    '/data': '资料管理',
-    '/notice': '通知管理',
-    '/discuss': '讨论管理',
-    '/homework': '作业管理',
     '/question': '题库管理',
     '/paper': '试卷管理',
     '/exam': '考试发布',

@@ -131,8 +131,8 @@
         <el-table-column prop="riskScore" label="风险分" width="100" />
         <el-table-column prop="riskLevel" label="风险等级" width="120">
           <template #default="scope">
-            <el-tag :type="scope.row.riskLevel === 'HIGH' ? 'danger' : (scope.row.riskLevel === 'MEDIUM' ? 'warning' : 'success')">
-              {{ scope.row.riskLevel }}
+            <el-tag :type="riskLevelMeta(scope.row.riskLevel).tag">
+              {{ riskLevelMeta(scope.row.riskLevel).text }}
             </el-tag>
           </template>
         </el-table-column>
@@ -143,7 +143,8 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import request from '../utils/request'
+import request, { getWsBase } from '../utils/request'
+import { riskLevelMeta } from '../utils/format'
 
 const stat = ref({})
 const todo = ref({})
@@ -243,8 +244,7 @@ const fetchRisk = async () => {
 const getRiskWsUrl = () => {
   const token = localStorage.getItem('token') || ''
   if (!token) return ''
-  const apiBase = request.defaults.baseURL || ''
-  const wsBase = apiBase.replace(/^http/i, 'ws').replace(/\/api\/?$/, '')
+  const wsBase = getWsBase()
   return `${wsBase}/ws/teacher-risk?token=${encodeURIComponent(token)}`
 }
 

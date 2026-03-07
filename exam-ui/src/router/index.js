@@ -11,11 +11,6 @@ const routes = [
     component: Layout,
     redirect: '/exam',
     children: [
-      { path: 'chapter', component: () => import('../views/WorkbenchPlaceholder.vue'), props: { title: '章节', description: '章节体系与教学计划模块建设中' } },
-      { path: 'data', component: () => import('../views/WorkbenchPlaceholder.vue'), props: { title: '资料', description: '课程资料上传与分发模块建设中' } },
-      { path: 'notice', component: () => import('../views/WorkbenchPlaceholder.vue'), props: { title: '通知', description: '课程通知发布模块建设中' } },
-      { path: 'discuss', component: () => import('../views/WorkbenchPlaceholder.vue'), props: { title: '讨论', description: '课程讨论区模块建设中' } },
-      { path: 'homework', component: () => import('../views/WorkbenchPlaceholder.vue'), props: { title: '作业', description: '作业布置与批改模块建设中' } },
       { path: 'question', component: () => import('../views/Question.vue') },
       { path: 'question/edit', component: () => import('../views/QuestionEdit.vue') },
       { path: 'paper', component: () => import('../views/Paper.vue') },
@@ -38,6 +33,7 @@ const routes = [
       { path: 'results', component: () => import('../views/StudentResults.vue') },
       { path: 'result-detail/:recordId', component: () => import('../views/StudentResultDetail.vue') },
       { path: 'wrong-books', component: () => import('../views/WrongBooks.vue') },
+      { path: 'wrong-practice', component: () => import('../views/WrongPractice.vue') },
       { path: 'notices', component: () => import('../views/StudentNotices.vue') }
     ]
   },

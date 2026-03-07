@@ -10,11 +10,12 @@
         </el-button>
       </div>
       <div class="right-actions">
-        <el-input placeholder="搜索试卷名称" prefix-icon="Search" class="search-input" />
-        <el-button type="primary" link style="margin-left: 10px;">搜索</el-button>
+        <el-input v-model="keyword" placeholder="搜索试卷名称" prefix-icon="Search" class="search-input" @keyup.enter="fetchPapers" />
+        <el-button type="primary" link style="margin-left: 10px;" @click="fetchPapers">搜索</el-button>
       </div>
     </div>
 
+    <LoadErrorBar :message="loadError" @retry="fetchPapers" />
     <el-table :data="tableData" class="custom-table" :header-cell-style="{ background: '#fafafa', color: '#606266', fontWeight: 'bold' }" v-loading="loading">
       <el-table-column label="序号" type="index" width="80" align="center" />
       <el-table-column prop="id" label="试卷ID" width="100" />
@@ -79,11 +80,14 @@ import { ref, onMounted } from 'vue'
 import { DocumentAdd, MagicStick, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '../utils/request'
+import LoadErrorBar from '../components/LoadErrorBar.vue'
 
 const currentUsername = ref(localStorage.getItem('username') || '管理员')
 const tableData = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const btnLoading = ref(false)
+const keyword = ref('')
 
 const dialogRandomVisible = ref(false)
 const randomForm = ref({
@@ -95,11 +99,14 @@ const randomForm = ref({
 
 const fetchPapers = async () => {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await request.get('/teacher/papers')
-    tableData.value = res
+    const list = Array.isArray(res) ? res : []
+    const kw = keyword.value.trim().toLowerCase()
+    tableData.value = !kw ? list : list.filter(x => String(x.title || '').toLowerCase().includes(kw))
   } catch (e) {
-    console.error('拉取试卷失败', e)
+    loadError.value = e?.response?.data?.error || '加载试卷失败'
   } finally {
     loading.value = false
   }

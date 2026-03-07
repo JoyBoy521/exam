@@ -8,6 +8,16 @@
             <el-tag size="small" :type="wsConnected ? 'success' : 'info'">{{ wsConnected ? '实时连接' : '轮询模式' }}</el-tag>
           </div>
           <div class="right">
+            <el-select v-model="classId" placeholder="班级" style="width: 180px; margin-right: 8px;" clearable @change="fetchDashboard">
+              <el-option label="全部班级" :value="null" />
+              <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+            <el-select v-model="riskLevel" placeholder="风险等级" style="width: 140px; margin-right: 8px;" clearable @change="fetchDashboard">
+              <el-option label="全部等级" value="" />
+              <el-option label="高风险" value="HIGH" />
+              <el-option label="中风险" value="MEDIUM" />
+              <el-option label="低风险" value="LOW" />
+            </el-select>
             <el-select v-model="examId" placeholder="选择考试" style="width: 280px" @change="fetchDashboard">
               <el-option v-for="e in exams" :key="e.id" :label="e.title" :value="e.id" />
             </el-select>
@@ -47,6 +57,18 @@
 
       <el-col :span="12">
         <el-card shadow="never">
+          <template #header><span>在线人数趋势（5/15/30分钟）</span></template>
+          <el-table :data="dashboard.onlineTrend || []" size="small" height="200" v-loading="loading">
+            <el-table-column prop="windowMinutes" label="窗口(分钟)" width="120" />
+            <el-table-column prop="onlineCount" label="在线人数" width="120" />
+            <el-table-column prop="onlineRate" label="在线率">
+              <template #default="scope">{{ scope.row.onlineRate || 0 }}%</template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
           <template #header><span>风险学生 Top10</span></template>
           <el-table :data="dashboard.riskTopStudents || []" size="small" height="420" v-loading="loading">
             <el-table-column label="#" width="60">
@@ -58,9 +80,14 @@
             <el-table-column prop="riskScore" label="风险分" width="90" />
             <el-table-column label="等级" width="100">
               <template #default="scope">
-                <el-tag :type="scope.row.riskLevel === 'HIGH' ? 'danger' : (scope.row.riskLevel === 'MEDIUM' ? 'warning' : 'success')">
-                  {{ scope.row.riskLevel }}
+                <el-tag :type="riskLevelMeta(scope.row.riskLevel).tag">
+                  {{ riskLevelMeta(scope.row.riskLevel).text }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="110" fixed="right">
+              <template #default="scope">
+                <el-button type="primary" link @click="jumpToMarking(scope.row)">查看答卷</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -79,6 +106,13 @@
         <el-table-column prop="type" label="事件类型" width="160">
           <template #default="scope"><el-tag size="small">{{ scope.row.type }}</el-tag></template>
         </el-table-column>
+        <el-table-column label="风险等级" width="100">
+          <template #default="scope">
+            <el-tag :type="riskLevelMeta(scope.row.riskLevel).tag">
+              {{ riskLevelMeta(scope.row.riskLevel).text }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="durationSeconds" label="时长(s)" width="90" />
         <el-table-column prop="detail" label="详情" min-width="220" />
       </el-table>
@@ -88,15 +122,22 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
-import request from '../utils/request'
+import { useRouter } from 'vue-router'
+import request, { getWsBase } from '../utils/request'
+import { formatDateTime, riskLevelMeta } from '../utils/format'
 
+const router = useRouter()
 const exams = ref([])
+const classes = ref([])
 const examId = ref(null)
+const classId = ref(null)
+const riskLevel = ref('')
 const loading = ref(false)
 const dashboard = ref({
   onlineCount: 0,
   totalStudents: 0,
   onlineRate: 0,
+  onlineTrend: [],
   onlineStudents: [],
   riskTopStudents: [],
   recentViolations: []
@@ -114,19 +155,24 @@ const fetchExams = async () => {
   }
 }
 
+const fetchClasses = async () => {
+  classes.value = await request.get('/teacher/classes')
+}
+
 const fetchDashboard = async () => {
   if (!examId.value) return
   loading.value = true
   try {
-    dashboard.value = await request.get('/teacher/monitor/dashboard', { params: { examId: examId.value } })
+    dashboard.value = await request.get('/teacher/monitor/dashboard', {
+      params: {
+        examId: examId.value,
+        classId: classId.value || undefined,
+        riskLevel: riskLevel.value || undefined
+      }
+    })
   } finally {
     loading.value = false
   }
-}
-
-const formatDateTime = (t) => {
-  if (!t) return '-'
-  return String(t).replace('T', ' ').slice(0, 19)
 }
 
 const formatDuration = (seconds) => {
@@ -140,8 +186,7 @@ const formatDuration = (seconds) => {
 const getWsUrl = () => {
   const token = localStorage.getItem('token') || ''
   if (!token) return ''
-  const apiBase = request.defaults.baseURL || ''
-  const wsBase = apiBase.replace(/^http/i, 'ws').replace(/\/api\/?$/, '')
+  const wsBase = getWsBase()
   return `${wsBase}/ws/teacher-risk?token=${encodeURIComponent(token)}`
 }
 
@@ -175,8 +220,19 @@ const connectWs = () => {
   }
 }
 
+const jumpToMarking = (row) => {
+  if (!examId.value || !row?.studentNo) return
+  router.push({
+    path: `/marking/${examId.value}`,
+    query: {
+      studentNo: row.studentNo,
+      status: 'MARKING'
+    }
+  })
+}
+
 onMounted(async () => {
-  await fetchExams()
+  await Promise.all([fetchExams(), fetchClasses()])
   await fetchDashboard()
   connectWs()
   pollTimer = setInterval(() => {

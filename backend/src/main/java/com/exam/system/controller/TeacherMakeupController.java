@@ -31,7 +31,10 @@ public class TeacherMakeupController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> list(@RequestParam(required = false) String status) {
+    public Map<String, Object> list(@RequestParam(required = false) String status,
+                                    @RequestParam(required = false) String keyword,
+                                    @RequestParam(defaultValue = "1") Integer page,
+                                    @RequestParam(defaultValue = "10") Integer size) {
         LambdaQueryWrapper<StudentMakeupRequest> query = new LambdaQueryWrapper<>();
         if (status != null && !status.isBlank()) {
             query.eq(StudentMakeupRequest::getStatus, status);
@@ -39,10 +42,20 @@ public class TeacherMakeupController {
         query.orderByDesc(StudentMakeupRequest::getRequestedAt);
 
         List<StudentMakeupRequest> requests = studentMakeupRequestMapper.selectList(query);
-        List<Map<String, Object>> result = new ArrayList<>();
+        if (requests.isEmpty()) {
+            return paginate(List.of(), page, size);
+        }
+        Map<Long, Student> studentMap = studentMapper.selectBatchIds(
+                requests.stream().map(StudentMakeupRequest::getStudentId).collect(java.util.stream.Collectors.toSet())
+        ).stream().collect(java.util.stream.Collectors.toMap(Student::getId, s -> s, (a, b) -> a));
+        Map<Long, Exam> examMap = examMapper.selectBatchIds(
+                requests.stream().map(StudentMakeupRequest::getExamId).collect(java.util.stream.Collectors.toSet())
+        ).stream().collect(java.util.stream.Collectors.toMap(Exam::getId, e -> e, (a, b) -> a));
+
+        List<Map<String, Object>> rows = new ArrayList<>();
         for (StudentMakeupRequest request : requests) {
-            Student student = studentMapper.selectById(request.getStudentId());
-            Exam exam = examMapper.selectById(request.getExamId());
+            Student student = studentMap.get(request.getStudentId());
+            Exam exam = examMap.get(request.getExamId());
             Map<String, Object> row = new HashMap<>();
             row.put("id", request.getId());
             row.put("examId", request.getExamId());
@@ -56,9 +69,12 @@ public class TeacherMakeupController {
             row.put("approvedExtraMinutes", request.getApprovedExtraMinutes());
             row.put("requestedAt", request.getRequestedAt());
             row.put("reviewedAt", request.getReviewedAt());
-            result.add(row);
+            if (!hitFilter(row, keyword)) {
+                continue;
+            }
+            rows.add(row);
         }
-        return result;
+        return paginate(rows, page, size);
     }
 
     @PostMapping("/{id}/review")
@@ -79,5 +95,30 @@ public class TeacherMakeupController {
         request.setReviewedAt(LocalDateTime.now());
         studentMakeupRequestMapper.updateById(request);
         return "审核完成";
+    }
+
+    private Map<String, Object> paginate(List<Map<String, Object>> rows, Integer page, Integer size) {
+        int safePage = Math.max(1, page == null ? 1 : page);
+        int safeSize = Math.max(1, Math.min(size == null ? 10 : size, 200));
+        int total = rows.size();
+        int fromIndex = Math.min((safePage - 1) * safeSize, total);
+        int toIndex = Math.min(fromIndex + safeSize, total);
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", rows.subList(fromIndex, toIndex));
+        result.put("total", total);
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        return result;
+    }
+
+    private boolean hitFilter(Map<String, Object> row, String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return true;
+        }
+        String kw = keyword.trim().toLowerCase();
+        return String.valueOf(row.getOrDefault("examTitle", "")).toLowerCase().contains(kw)
+                || String.valueOf(row.getOrDefault("studentNo", "")).toLowerCase().contains(kw)
+                || String.valueOf(row.getOrDefault("studentName", "")).toLowerCase().contains(kw)
+                || String.valueOf(row.getOrDefault("reason", "")).toLowerCase().contains(kw);
     }
 }

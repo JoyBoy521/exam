@@ -2,9 +2,11 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const request = axios.create({
-  baseURL: 'http://127.0.0.1:8080/api', // 直接指向你的 Spring Boot 后端
-  timeout: 5000
+  baseURL: API_BASE,
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT || 10000)
 })
 
 // 请求拦截器：如果本地存了 Token，每次发请求都偷偷塞进请求头里
@@ -26,10 +28,24 @@ request.interceptors.response.use(
       localStorage.removeItem('token')
       router.push('/login')
     } else {
-      ElMessage.error(error.response?.data?.error || '网络请求出错了')
+      if (!error.response) {
+        const msg = error.code === 'ECONNABORTED' ? '请求超时，请检查后端服务' : '网络不可用或后端未启动'
+        ElMessage.error(msg)
+      } else {
+        ElMessage.error(error.response?.data?.error || '网络请求出错了')
+      }
     }
     return Promise.reject(error)
   }
 )
+
+export const getWsBase = () => {
+  const apiBase = request.defaults.baseURL || '/api'
+  if (/^https?:\/\//i.test(apiBase)) {
+    return apiBase.replace(/^http/i, 'ws').replace(/\/api\/?$/, '')
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}`
+}
 
 export default request
